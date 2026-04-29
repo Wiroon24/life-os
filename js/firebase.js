@@ -48,12 +48,16 @@ _auth.onAuthStateChanged(user => {
 });
 
 function fbLogin() {
-  _dbg('🔄 opening Google login...');
-  _auth.signInWithPopup(_provider).catch(e => {
+  _dbg('🔄 redirecting to Google login...');
+  _auth.signInWithRedirect(_provider).catch(e => {
     _dbg('❌ login error: ' + e.code);
-    alert('Login ไม่สำเร็จ: ' + e.message);
   });
 }
+
+// Handle redirect result on page load
+_auth.getRedirectResult().then(result => {
+  if (result && result.user) _dbg('✅ redirect login ok: ' + result.user.email);
+}).catch(e => _dbg('❌ redirect result error: ' + e.code));
 
 // ── Debug panel ───────────────────────────────────
 function _dbg(msg) {
