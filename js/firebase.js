@@ -30,20 +30,38 @@ _auth.onAuthStateChanged(user => {
     _uid = user.uid;
     _fbReady = true;
     _hideLoginUI();
+    _dbg('✅ logged in: ' + user.email + ' | uid: ' + _uid.slice(0,8));
     _fbPull();
     _fbListen();
   } else {
     _fbReady = false;
     _uid = null;
+    _dbg('⚠️ not logged in');
     _showLoginUI();
   }
 });
 
 function fbLogin() {
+  _dbg('🔄 opening Google login...');
   _auth.signInWithPopup(_provider).catch(e => {
-    console.warn('[FB] login:', e);
+    _dbg('❌ login error: ' + e.code);
     alert('Login ไม่สำเร็จ: ' + e.message);
   });
+}
+
+// ── Debug panel ───────────────────────────────────
+function _dbg(msg) {
+  console.log('[FB]', msg);
+  let el = document.getElementById('fbDebug');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'fbDebug';
+    el.style.cssText = 'position:fixed;bottom:70px;left:0;right:0;background:rgba(0,0,0,0.85);color:#0f0;font-size:10px;font-family:monospace;padding:6px 10px;z-index:8888;max-height:80px;overflow-y:auto;';
+    document.body.appendChild(el);
+    setTimeout(()=>{el.style.display='none';}, 15000);
+  }
+  el.style.display = 'block';
+  el.innerHTML = msg + '<br>' + el.innerHTML;
 }
 
 // ── Login UI ─────────────────────────────────────
@@ -72,6 +90,7 @@ function _hideLoginUI() {
 
 // ── Pull on login ─────────────────────────────────
 async function _fbPull() {
+  _dbg('🔄 pulling from Firestore...');
   try {
     const [daySnap, recentSnap, histSnap] = await Promise.all([
       _dayRef().get(),
@@ -94,12 +113,13 @@ async function _fbPull() {
       localStorage.setItem('los_hist', JSON.stringify({ ...local, ...histSnap.data().data }));
     }
 
+    _dbg('✅ pull ok | day:' + daySnap.exists + ' changed:' + changed);
     if (changed) {
       loadState(); updateProgress();
       renderFood(); buildWater(); updateRecentList();
     }
     _badge('synced');
-  } catch(e) { console.warn('[FB] pull:', e); }
+  } catch(e) { _dbg('❌ pull error: ' + e.message); }
 }
 
 // ── Real-time listener ────────────────────────────
@@ -116,11 +136,11 @@ function _fbListen() {
 }
 
 // ── Save helpers ──────────────────────────────────
-function fbSaveTasks(done)  { if (!_fbReady) return; _dayRef().set({tasks:done},{merge:true}).catch(e=>console.warn('[FB]',e)); }
-function fbSaveFood(food)   { if (!_fbReady) return; _dayRef().set({food},{merge:true}).catch(e=>console.warn('[FB]',e)); }
-function fbSaveWater(water) { if (!_fbReady) return; _dayRef().set({water},{merge:true}).catch(e=>console.warn('[FB]',e)); }
-function fbSaveRecent(list) { if (!_fbReady) return; _metaRef('recent').set({list},{merge:true}).catch(e=>console.warn('[FB]',e)); }
-function fbSaveHist(hist)   { if (!_fbReady) return; _metaRef('hist').set({data:hist},{merge:true}).catch(e=>console.warn('[FB]',e)); }
+function fbSaveTasks(done)  { if (!_fbReady) return; _dayRef().set({tasks:done},{merge:true}).then(()=>_dbg('💾 tasks saved')).catch(e=>_dbg('❌ saveTasks: '+e.message)); }
+function fbSaveFood(food)   { if (!_fbReady) return; _dayRef().set({food},{merge:true}).then(()=>_dbg('💾 food saved')).catch(e=>_dbg('❌ saveFood: '+e.message)); }
+function fbSaveWater(water) { if (!_fbReady) return; _dayRef().set({water},{merge:true}).then(()=>_dbg('💾 water saved')).catch(e=>_dbg('❌ saveWater: '+e.message)); }
+function fbSaveRecent(list) { if (!_fbReady) return; _metaRef('recent').set({list},{merge:true}).catch(e=>_dbg('❌ saveRecent: '+e.message)); }
+function fbSaveHist(hist)   { if (!_fbReady) return; _metaRef('hist').set({data:hist},{merge:true}).catch(e=>_dbg('❌ saveHist: '+e.message)); }
 
 // ── Badge ─────────────────────────────────────────
 function _badge(msg) {
