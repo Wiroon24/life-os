@@ -268,12 +268,14 @@ function saveTaskState(){
   const done=[];
   document.querySelectorAll('.tblock.done,.subtask.done').forEach(e=>done.push(e.id));
   localStorage.setItem('los_t_'+TODAY,JSON.stringify(done));
+  fbSaveTasks(done);
   const pct=calcProgress();
   saveHist({task:pct});
 }
 
 function saveFoodState(){
   localStorage.setItem('los_f_'+TODAY,JSON.stringify(foodLog));
+  fbSaveFood(foodLog);
   const tC=foodLog.reduce((s,f)=>s+f.cal,0);
   const tP=foodLog.reduce((s,f)=>s+f.p,0);
   saveHist({cal:tC,prot:tP});
@@ -286,10 +288,12 @@ function saveFoodState(){
     if(recent.length>=8) break;
   }
   localStorage.setItem('los_recent',JSON.stringify(recent));
+  fbSaveRecent(recent);
 }
 
 function saveWater(){
   localStorage.setItem('los_w_'+TODAY,waterCount);
+  fbSaveWater(waterCount);
   saveHist({water:waterCount*250});
 }
 
@@ -298,6 +302,7 @@ function saveHist(data){
   if(!hist[TODAY]) hist[TODAY]={};
   Object.assign(hist[TODAY],data);
   localStorage.setItem('los_hist',JSON.stringify(hist));
+  fbSaveHist(hist);
 }
 
 // ============ INIT ============
