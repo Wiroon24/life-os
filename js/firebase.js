@@ -26,7 +26,7 @@ function _metaRef(k)  { return _db.doc(`users/${_uid}/meta/${k}`); }
 
 // ── Auth state ────────────────────────────────────
 _auth.onAuthStateChanged(user => {
-  if (user) {
+  if (user && !user.isAnonymous) {
     _uid = user.uid;
     _fbReady = true;
     _hideLoginUI();
@@ -34,9 +34,15 @@ _auth.onAuthStateChanged(user => {
     _fbPull();
     _fbListen();
   } else {
+    // Sign out anonymous sessions and force Google login
+    if (user && user.isAnonymous) {
+      _dbg('⚠️ anonymous session found, signing out...');
+      _auth.signOut();
+      return;
+    }
     _fbReady = false;
     _uid = null;
-    _dbg('⚠️ not logged in');
+    _dbg('⚠️ not logged in → showing Google login');
     _showLoginUI();
   }
 });
