@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
+  <rect width="192" height="192" fill="#060608" rx="30"/>
+  <text x="96" y="112" font-size="90" text-anchor="middle" fill="#b8f000">⚡</text>
+  <text x="96" y="158" font-size="32" text-anchor="middle" fill="#b8f000" font-family="monospace" font-weight="bold">OS</text>
+</svg>

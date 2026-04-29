@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
+<title>Life OS</title>
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#060608">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="hdr">
+  <div class="hdr-row">
+    <span class="logo">LIFE·OS</span>
+    <span class="hdr-date" id="hdrDate"></span>
+  </div>
+  <div class="hdr-day" id="hdrDay"></div>
+  <div class="badges" id="hdrBadges"></div>
+</div>
+
+<div class="now-strip">
+  <div class="now-dot"></div>
+  <div class="now-info">
+    <div class="now-task" id="nowTask">กำลังโหลด...</div>
+    <div class="now-sub" id="nowSub"></div>
+  </div>
+  <div class="now-time" id="nowTime"></div>
+</div>
+
+<div class="tabs">
+  <div class="tab on" onclick="showPg('today')">TODAY</div>
+  <div class="tab" onclick="showPg('food')">FOOD</div>
+  <div class="tab" onclick="showPg('report')">REPORT</div>
+</div>
+
+<div class="pages">
+
+<!-- TODAY -->
+<div class="pg on" id="pg-today">
+  <div class="prog" style="margin-bottom:8px;">
+    <div class="prog-row">
+      <span class="prog-lbl">เสร็จแล้ววันนี้</span>
+      <span class="prog-val" id="progVal">0%</span>
+    </div>
+    <div class="prog-bar"><div class="prog-fill" id="progFill" style="width:0%"></div></div>
+  </div>
+  <div id="timeline"></div>
+</div>
+
+<!-- FOOD -->
+<div class="pg" id="pg-food">
+  <div class="food-top">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <span style="font-size:11px;color:var(--t2);">วันนี้</span>
+      <span style="font-family:var(--mono);font-size:12px;font-weight:700;" id="calTarget">— kcal</span>
+    </div>
+    <div class="macro-row">
+      <div class="macro-box"><div class="macro-v c-amber" id="mCal">0</div><div class="macro-l">KCAL</div></div>
+      <div class="macro-box"><div class="macro-v c-blue" id="mP">0</div><div class="macro-l">PROTEIN</div></div>
+      <div class="macro-box"><div class="macro-v c-lime" id="mC">0</div><div class="macro-l">CARB</div></div>
+      <div class="macro-box"><div class="macro-v" style="color:var(--purple);" id="mF">0</div><div class="macro-l">FAT</div></div>
+    </div>
+    <div class="calbar-wrap">
+      <div class="calbar-labels"><span id="calLeft"></span><span id="calRight"></span></div>
+      <div class="calbar"><div class="calbar-fill" id="calBarFill" style="width:0%;background:var(--lime);"></div></div>
+    </div>
+    <div class="calbar-wrap" style="margin-top:5px;">
+      <div class="calbar-labels">
+        <span style="color:var(--t3);">โปรตีน <span id="protIn">0</span>/120g</span>
+        <span id="protRight" style="color:var(--blue);">—</span>
+      </div>
+      <div class="calbar"><div class="calbar-fill" id="protBarFill" style="width:0%;background:var(--blue);"></div></div>
+    </div>
+  </div>
+
+  <div class="food-card">
+    <div class="inp-row">
+      <div class="food-search-wrap">
+        <input class="food-inp" id="foodInp" placeholder="ค้นหาอาหาร เช่น ข้าวผัดไข่, กะเพราหมู..."
+          oninput="onFoodInput(this.value)"
+          onkeydown="if(event.key==='Enter')addFoodByName()"
+          autocomplete="off">
+        <div class="food-suggest" id="foodSuggest"></div>
+      </div>
+      <button class="add-btn" onclick="addFoodByName()">+</button>
+    </div>
+    <div class="inp-row" style="margin-bottom:4px;">
+      <input class="food-inp" id="barcodeInp" placeholder="Barcode เช่น 8850329120012"
+        style="font-family:var(--mono);font-size:12px;"
+        onkeydown="if(event.key==='Enter')runBarcode()">
+      <button class="sec-btn" onclick="openScanModal()">📷 สแกน</button>
+      <button class="sec-btn" onclick="runBarcode()">ค้นหา</button>
+    </div>
+    <div class="food-hint" id="barcodeHint"></div>
+    <div class="food-list" id="foodList"></div>
+  </div>
+
+  <div class="qa-section" id="qaSection" style="display:none;">
+    <div class="qa-title">เพิ่งกินล่าสุด</div>
+    <div class="qa-list" id="qaList"></div>
+  </div>
+
+  <div class="water-card">
+    <div class="water-row">
+      <span style="font-size:11px;color:var(--t2);">💧 น้ำวันนี้</span>
+      <span class="water-v" id="waterVal">0 ml</span>
+    </div>
+    <div class="water-cups" id="waterCups"></div>
+    <div style="font-size:10px;color:var(--t3);margin-top:6px;">แต่ละแก้ว = 250 ml · เป้าหมาย 3,000 ml</div>
+  </div>
+
+  <button class="reset-btn" onclick="resetFood()">ล้างรายการอาหารวันนี้</button>
+</div>
+
+<!-- REPORT -->
+<div class="pg" id="pg-report">
+  <div class="report-tabs">
+    <div class="rtab on" onclick="setRP('week',this)">สัปดาห์</div>
+    <div class="rtab" onclick="setRP('month',this)">เดือน</div>
+    <div class="rtab" onclick="setRP('year',this)">ปี</div>
+  </div>
+  <div class="streak-card">
+    <div class="streak-num" id="streakNum">0</div>
+    <div><div class="s-lbl">วันติดต่อกัน</div><div class="s-sub" id="streakSub">—</div></div>
+  </div>
+  <div class="stat-row">
+    <div class="stat-box"><div class="stat-lbl">แคลอรี่เฉลี่ย</div><div class="stat-v c-amber" id="avgCal">—</div><div class="stat-sub">kcal/วัน</div></div>
+    <div class="stat-box"><div class="stat-lbl">โปรตีนเฉลี่ย</div><div class="stat-v c-blue" id="avgProt">—</div><div class="stat-sub">g/วัน</div></div>
+    <div class="stat-box"><div class="stat-lbl">task เสร็จ</div><div class="stat-v c-lime" id="avgTask">—</div><div class="stat-sub">% เฉลี่ย</div></div>
+  </div>
+  <div class="chart-card"><div class="chart-title">แคลอรี่ vs เป้าหมาย</div><div class="chart-wrap"><canvas id="calChart"></canvas></div></div>
+  <div class="chart-card"><div class="chart-title">โปรตีน (g)</div><div class="chart-wrap"><canvas id="protChart"></canvas></div></div>
+  <div class="chart-card"><div class="chart-title">น้ำ (ml)</div><div class="chart-wrap"><canvas id="waterChart"></canvas></div></div>
+  <div class="chart-card"><div class="chart-title">task เสร็จ (%)</div><div class="chart-wrap"><canvas id="taskChart"></canvas></div></div>
+
+  <div class="slbl" style="margin-top:16px;">⚠️ สุขภาพ</div>
+  <div class="alert-card alert-danger"><strong>WBC 11,160</strong>เม็ดเลือดขาวสูง ต้องพบแพทย์หาสาเหตุ</div>
+  <div class="alert-card alert-danger"><strong>Cholesterol 268 · LDL 186</strong>ไขมันในเลือดสูงมาก ลดของทอด เพิ่มปลา omega-3</div>
+  <div class="alert-card alert-warn"><strong>HDL 43</strong>ไขมันดีต่ำ เป้า >60 — เพิ่มถั่ว อะโวคาโด cardio</div>
+  <div class="alert-card alert-good"><strong>ค่าปกติดี</strong>น้ำตาล 94 · ตับ ปกติ · ไต eGFR 97.7 · กล้ามเนื้อ 64.9% ยอดเยี่ยม</div>
+  <div class="alert-card alert-info"><strong>ตรวจเพิ่มรอบต่อไป</strong>Vitamin D · B12 · Ferritin · Thyroid (TSH)</div>
+
+  <div class="slbl">💊 Supplement</div>
+  <div style="background:var(--s1);border:1px solid var(--bd);border-radius:var(--r);overflow:hidden;margin-bottom:8px;">
+    <div class="row" style="padding:8px 14px;"><span class="c-red">Magnesium Glycinate 300mg คืน</span><span class="row-r c-red">ด่วน</span></div>
+    <div class="row" style="padding:8px 14px;"><span class="c-red">Vitamin D3 2,000–4,000 IU เช้า</span><span class="row-r c-red">ด่วน</span></div>
+    <div class="row" style="padding:8px 14px;"><span class="c-amber">Omega-3 Fish Oil 1,000mg</span><span class="row-r c-amber">เร่งด่วน</span></div>
+    <div class="row" style="padding:8px 14px;border-bottom:none;"><span class="c-amber">Zinc 25mg เช้า</span><span class="row-r c-amber">เร่งด่วน</span></div>
+  </div>
+</div>
+
+</div><!-- /pages -->
+
+<!-- TIMER MODAL -->
+<div class="modal-bg" id="timerModal">
+  <div class="modal">
+    <div class="m-label">⏱ จับเวลา</div>
+    <div class="m-task" id="timerLabel">—</div>
+    <div class="ring-wrap">
+      <svg width="130" height="130" viewBox="0 0 130 130">
+        <circle class="ring-bg" cx="65" cy="65" r="54"/>
+        <circle class="ring-fg" id="timerRing" cx="65" cy="65" r="54" stroke-dasharray="339.3" stroke-dashoffset="0"/>
+      </svg>
+      <div class="ring-num" id="timerNum">0:00</div>
+    </div>
+    <div class="m-btns">
+      <button class="m-btn m-ghost" onclick="closeTimer()">ปิด</button>
+      <button class="m-btn m-primary" id="timerTogBtn" onclick="toggleTimer()">เริ่ม</button>
+    </div>
+  </div>
+</div>
+
+<!-- SCAN MODAL -->
+<div class="scan-modal" id="scanModal">
+  <div class="scan-header">
+    <span class="scan-title">📷 สแกน Barcode</span>
+    <button class="scan-close" onclick="closeScanModal()">✕</button>
+  </div>
+  <div class="scan-view">
+    <video id="scanVideo" playsinline autoplay muted></video>
+    <div class="scan-overlay">
+      <div class="scan-frame">
+        <div class="scan-corner sc-tl"></div>
+        <div class="scan-corner sc-tr"></div>
+        <div class="scan-corner sc-bl"></div>
+        <div class="scan-corner sc-br"></div>
+        <div class="scan-line"></div>
+      </div>
+      <div class="scan-hint" id="scanHint">เล็งกล้องที่บาร์โค้ด</div>
+    </div>
+  </div>
+  <div class="scan-footer">
+    <div class="scan-result" id="scanResult">กำลังเปิดกล้อง...</div>
+  </div>
+</div>
+
+<!-- NAV -->
+<div class="nav">
+  <div class="nbtn on" onclick="showPg('today')"><span class="n-ico">📋</span><span class="n-lbl">TODAY</span></div>
+  <div class="nbtn" onclick="showPg('food')"><span class="n-ico">🥗</span><span class="n-lbl">FOOD</span></div>
+  <div class="nbtn" onclick="showPg('report')"><span class="n-ico">📊</span><span class="n-lbl">REPORT</span></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
