@@ -3,170 +3,961 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
-<title>Life OS</title>
+<title>Iam</title>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="theme-color" content="#060608">
+<meta name="apple-mobile-web-app-title" content="Iam">
+<meta name="theme-color" content="#0A0A0A">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icons/icon-192.png">
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800&family=Barlow:wght@400;500;600&family=Sarabun:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
+<!-- Toast -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- ══ HEADER ═══════════════════════════════════ -->
 <div class="hdr">
-  <div class="hdr-row">
-    <span class="logo">LIFE·OS</span>
-    <span class="hdr-date" id="hdrDate"></span>
-    <span id="syncBadge" style="font-size:9px;color:var(--t3);opacity:0;transition:opacity 0.8s;margin-left:6px;"></span>
+  <div class="hdr-left">
+    <div class="hdr-day-txt" id="hdrDay">—</div>
+    <div class="hdr-date" id="hdrDate">—</div>
   </div>
-  <div class="hdr-day" id="hdrDay"></div>
-  <div class="badges" id="hdrBadges"></div>
-</div>
 
-<div class="now-strip">
-  <div class="now-dot"></div>
-  <div class="now-info">
-    <div class="now-task" id="nowTask">กำลังโหลด...</div>
-    <div class="now-sub" id="nowSub"></div>
+  <div class="hdr-streak" id="hdrStreak" style="display:none;">
+    <svg viewBox="0 0 24 24" width="13" height="13" fill="var(--orange)" stroke="none"><path d="M13.5 0.67s.74 2.65.74 4.8c0 2.06-1.35 3.73-3.41 3.73-2.07 0-3.63-1.67-3.63-3.73l.03-.36C5.21 7.51 4 10.62 4 14c0 4.42 3.58 8 8 8s8-3.58 8-8C20 8.61 17.41 3.8 13.5.67z"/></svg>
+    <span id="hdrStreakNum">0</span>
   </div>
-  <div class="now-time" id="nowTime"></div>
+
+  <div class="hdr-coin" id="hdrCoin" onclick="showPg('report')">
+    <span>🪙</span>
+    <span id="hdrCoinBaht">฿0</span>
+  </div>
+
+  <div class="hdr-right">
+    <span id="syncBadge"></span>
+    <div class="badges" id="hdrBadges"></div>
+    <button class="icon-btn" onclick="openSettings()" aria-label="ตั้งค่า">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+    </button>
+  </div>
 </div>
 
-<div class="tabs">
-  <div class="tab on" onclick="showPg('today')">TODAY</div>
-  <div class="tab" onclick="showPg('food')">FOOD</div>
-  <div class="tab" onclick="showPg('report')">REPORT</div>
-</div>
-
+<!-- ══ PAGES ════════════════════════════════════ -->
 <div class="pages">
 
-<!-- TODAY -->
+<!-- ── TODAY ──────────────────────────────────── -->
 <div class="pg on" id="pg-today">
-  <div class="prog" style="margin-bottom:8px;">
-    <div class="prog-row">
-      <span class="prog-lbl">เสร็จแล้ววันนี้</span>
-      <span class="prog-val" id="progVal">0%</span>
-    </div>
-    <div class="prog-bar"><div class="prog-fill" id="progFill" style="width:0%"></div></div>
+
+  <!-- Hidden legacy compat -->
+  <div style="display:none;">
+    <span class="prog-lbl" id="progLbl"></span>
+    <span id="progVal">0%</span>
+    <div id="progFill"></div>
   </div>
+
+  <!-- ── Day Hero V2 ── -->
+  <div class="day-hero2">
+
+    <!-- Top row: ring + time/progress -->
+    <div class="dh2-top">
+      <div class="dh2-ring-wrap">
+        <svg viewBox="0 0 96 96" width="72" height="72">
+          <circle class="ring-track-bg" cx="48" cy="48" r="44"/>
+          <circle class="ring-progress" id="progRing" cx="48" cy="48" r="44"
+            stroke-dasharray="276.5" stroke-dashoffset="276.5"
+            transform="rotate(-90 48 48)"/>
+        </svg>
+        <div class="dh2-ring-inner">
+          <div class="day-pct" id="progValBig">0%</div>
+        </div>
+      </div>
+      <div class="dh2-stats">
+        <div class="dh2-time" id="nowTime">00:00</div>
+        <div class="dh2-pct-lbl" id="progLblSmall">วันนี้</div>
+      </div>
+    </div>
+
+    <!-- Category progress bars (Streaks-inspired) -->
+    <div class="dh2-cats">
+      <div class="dh2-cat">
+        <div class="dh2-cat-hd">
+          <span class="dh2-cat-ico">🌅</span>
+          <span class="dh2-cat-lbl">เช้า</span>
+          <span class="dh2-cat-prog" id="catProgMorning">—</span>
+        </div>
+        <div class="dh2-cat-track">
+          <div class="dh2-cat-fill" id="catFillMorning" style="width:0%;"></div>
+        </div>
+      </div>
+      <div class="dh2-cat">
+        <div class="dh2-cat-hd">
+          <span class="dh2-cat-ico">🏋️</span>
+          <span class="dh2-cat-lbl">ออกกำลัง</span>
+          <span class="dh2-cat-prog" id="catProgExercise">—</span>
+        </div>
+        <div class="dh2-cat-track">
+          <div class="dh2-cat-fill" id="catFillExercise" style="width:0%;background:var(--lime);"></div>
+        </div>
+      </div>
+      <div class="dh2-cat">
+        <div class="dh2-cat-hd">
+          <span class="dh2-cat-ico">🌙</span>
+          <span class="dh2-cat-lbl">เย็น</span>
+          <span class="dh2-cat-prog" id="catProgEvening">—</span>
+        </div>
+        <div class="dh2-cat-track">
+          <div class="dh2-cat-fill" id="catFillEvening" style="width:0%;background:var(--blue);"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- NOW spotlight -->
+    <div class="dh2-now" onclick="scrollToActiveBlock()" role="button" style="cursor:pointer;">
+      <span class="dh2-now-badge">NOW</span>
+      <div class="dh2-now-info">
+        <div class="day-now-name" id="nowTask">กำลังโหลด...</div>
+        <div class="day-now-sub" id="nowSub"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Quick Log Strip -->
+  <div class="quick-log-strip">
+    <button class="ql-btn" onclick="openMoodQuickModal()">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9" stroke-width="3"/><line x1="15" y1="9" x2="15.01" y2="9" stroke-width="3"/></svg>
+      <span id="qlMoodLbl">อารมณ์</span>
+    </button>
+    <button class="ql-btn" onclick="logWaterQuick()">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>
+      <span id="qlWaterLbl">น้ำ</span>
+    </button>
+    <button class="ql-btn" onclick="openSleepQuickModal()">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      <span id="qlSleepLbl">นอน</span>
+    </button>
+    <button class="ql-btn" onclick="openWeightQuickModal()">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 12h18M3 18h18"/><circle cx="12" cy="12" r="4"/></svg>
+      <span id="qlWeightLbl">น้ำหนัก</span>
+    </button>
+    <button class="ql-btn" onclick="openExerciseModal()">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 010 8h-1"/><path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
+      <span>ออกกำลัง</span>
+    </button>
+  </div>
+
+  <!-- Weekly Habit Dots -->
+  <div class="habit-strip" id="habitStrip"></div>
+
+  <!-- Timeline (JS fills with time-of-day sections) -->
   <div id="timeline"></div>
+
 </div>
 
-<!-- FOOD -->
+<!-- ── FOOD ──────────────────────────────────── -->
 <div class="pg" id="pg-food">
-  <div class="food-top">
-    <div style="display:flex;justify-content:space-between;align-items:center;">
-      <span style="font-size:11px;color:var(--t2);">วันนี้</span>
-      <span style="font-family:var(--mono);font-size:12px;font-weight:700;" id="calTarget">— kcal</span>
+
+  <!-- IF Timer -->
+  <div class="if-bar" id="ifBar" style="display:none;">
+    <span class="if-icon" id="ifIcon">⏱</span>
+    <div class="if-info">
+      <div class="if-label" id="ifLabel">Intermittent Fasting</div>
+      <div class="if-countdown" id="ifCountdown">--:--</div>
     </div>
-    <div class="macro-row">
-      <div class="macro-box"><div class="macro-v c-amber" id="mCal">0</div><div class="macro-l">KCAL</div></div>
-      <div class="macro-box"><div class="macro-v c-blue" id="mP">0</div><div class="macro-l">PROTEIN</div></div>
-      <div class="macro-box"><div class="macro-v c-lime" id="mC">0</div><div class="macro-l">CARB</div></div>
-      <div class="macro-box"><div class="macro-v" style="color:var(--purple);" id="mF">0</div><div class="macro-l">FAT</div></div>
-    </div>
-    <div class="calbar-wrap">
-      <div class="calbar-labels"><span id="calLeft"></span><span id="calRight"></span></div>
-      <div class="calbar"><div class="calbar-fill" id="calBarFill" style="width:0%;background:var(--lime);"></div></div>
-    </div>
-    <div class="calbar-wrap" style="margin-top:5px;">
-      <div class="calbar-labels">
-        <span style="color:var(--t3);">โปรตีน <span id="protIn">0</span>/120g</span>
-        <span id="protRight" style="color:var(--blue);">—</span>
+    <button class="if-toggle" onclick="openIfSettings()">ตั้งค่า</button>
+  </div>
+
+  <!-- ── Calorie + Macro Hero (unified) ── -->
+  <div class="cal-hero2">
+    <!-- Ring: shows calories eaten -->
+    <div class="cal-ring-wrap" style="width:96px;height:96px;flex-shrink:0;">
+      <svg class="cal-ring-svg" viewBox="0 0 160 160" width="96" height="96">
+        <circle class="cal-ring-track" cx="80" cy="80" r="66"/>
+        <circle class="cal-ring-fill" id="calRingFill" cx="80" cy="80" r="66"
+          stroke-dasharray="414.7" stroke-dashoffset="414.7"
+          transform="rotate(-90 80 80)"/>
+      </svg>
+      <div class="cal-ring-center">
+        <div class="cal-ring-pct" id="mCal">0</div>
+        <div class="cal-ring-lbl">kcal</div>
       </div>
-      <div class="calbar"><div class="calbar-fill" id="protBarFill" style="width:0%;background:var(--blue);"></div></div>
+    </div>
+
+    <!-- Right: remaining + pills + macro bars -->
+    <div class="cal-hero2-right">
+      <!-- Remaining -->
+      <div class="cal-hero2-rem">
+        <span class="cal-rem-num" id="calRemaining">—</span>
+        <span class="cal-rem-unit-sm">kcal เหลือ</span>
+      </div>
+
+      <!-- Goal / Eaten / Burned pills -->
+      <div class="cal-pills-row">
+        <div class="cal-pill">
+          <span class="cal-pill-v" id="calTargetNum">—</span>
+          <span class="cal-pill-l">เป้า</span>
+        </div>
+        <span class="cal-pill-sep">·</span>
+        <div class="cal-pill">
+          <span class="cal-pill-v" style="color:var(--amber);" id="calEaten2">0</span>
+          <span class="cal-pill-l">กิน</span>
+        </div>
+        <span class="cal-pill-sep">·</span>
+        <div class="cal-pill">
+          <span class="cal-pill-v" style="color:var(--lime);" id="calBurned2">0</span>
+          <span class="cal-pill-l">เบิร์น</span>
+        </div>
+      </div>
+
+      <!-- P / C / F compact bars -->
+      <div class="cmb-list">
+        <div class="cmb-row">
+          <span class="cmb-name" style="color:var(--blue);">P</span>
+          <div class="cmb-track"><div class="macro-bar-fill" id="protBarFillVis" style="width:0%;background:var(--blue);"></div></div>
+          <span class="cmb-num"><span id="protInVis">0</span>g</span>
+        </div>
+        <div class="cmb-row">
+          <span class="cmb-name" style="color:var(--teal);">C</span>
+          <div class="cmb-track"><div class="macro-bar-fill" id="carbBarFillVis" style="width:0%;background:var(--teal);"></div></div>
+          <span class="cmb-num"><span id="carbInVis">0</span>g</span>
+        </div>
+        <div class="cmb-row">
+          <span class="cmb-name" style="color:var(--purple);">F</span>
+          <div class="cmb-track"><div class="macro-bar-fill" id="fatBarFillVis" style="width:0%;background:var(--purple);"></div></div>
+          <span class="cmb-num"><span id="fatInVis">0</span>g</span>
+        </div>
+      </div>
+
+      <!-- Low Carb toggle -->
+      <div class="cmb-lowcarb">
+        <span>Low Carb</span>
+        <label class="toggle" style="transform:scale(0.75);transform-origin:right;">
+          <input type="checkbox" id="lowCarbToggle2" onchange="document.getElementById('lowCarbToggle').checked=this.checked;toggleLowCarb()">
+          <span class="tg-slider"></span>
+        </label>
+      </div>
     </div>
   </div>
 
-  <div class="food-card">
-    <div class="inp-row">
-      <div class="food-search-wrap">
-        <input class="food-inp" id="foodInp" placeholder="ค้นหาอาหาร เช่น ข้าวผัดไข่, กะเพราหมู..."
-          oninput="onFoodInput(this.value)"
-          onkeydown="if(event.key==='Enter')addFoodByName()"
-          autocomplete="off">
-        <div class="food-suggest" id="foodSuggest"></div>
-      </div>
-      <button class="add-btn" onclick="addFoodByName()">+</button>
-    </div>
-    <div class="inp-row" style="margin-bottom:4px;">
-      <input class="food-inp" id="barcodeInp" placeholder="Barcode เช่น 8850329120012"
-        style="font-family:var(--mono);font-size:12px;"
-        onkeydown="if(event.key==='Enter')runBarcode()">
-      <button class="sec-btn" onclick="openScanModal()">📷 สแกน</button>
-      <button class="sec-btn" onclick="runBarcode()">ค้นหา</button>
-    </div>
-    <div class="food-hint" id="barcodeHint"></div>
-    <div class="food-list" id="foodList"></div>
+  <!-- Hidden compat: all old IDs JS still writes to -->
+  <div style="display:none;">
+    <span id="mP">0</span><span id="mC">0</span><span id="mF">0</span>
+    <span id="mCalDup">0</span>
+    <span id="calLeft"></span><span id="calRight"></span>
+    <div id="calBarFill"></div>
+    <span id="protIn">0</span><span id="protRight">—</span><div id="protBarFill"></div>
+    <span id="carbIn">0</span><span id="carbTargetLbl">—</span><span id="carbRight">—</span><div id="carbBarFill"></div>
+    <span id="fatIn">0</span><span id="fatTargetLbl">—</span><span id="fatRight">—</span><div id="fatBarFill"></div>
+    <span id="protRightVis">—</span><span id="carbRightVis">—</span><span id="fatRightVis">—</span>
+    <span id="carbTargetLblVis">—</span><span id="fatTargetLblVis">—</span>
+    <div id="calFormula"></div>
+    <span id="calTarget"></span>
+    <input type="checkbox" id="lowCarbToggle" onchange="toggleLowCarb()">
+    <button id="mt_breakfast" class="meal-tab on" onclick="selectMeal('breakfast',this)"></button>
+    <button id="mt_lunch" class="meal-tab" onclick="selectMeal('lunch',this)"></button>
+    <button id="mt_dinner" class="meal-tab" onclick="selectMeal('dinner',this)"></button>
+    <button id="mt_snack" class="meal-tab" onclick="selectMeal('snack',this)"></button>
+    <div id="foodList"></div>
   </div>
 
+  <!-- ── Search Bar (compact, 1 row) ── -->
+  <div class="fd-search-bar">
+    <div class="food-search-wrap">
+      <svg class="food-search-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input class="food-search-inp" id="foodInp" placeholder="ค้นหา หรือพิมพ์ชื่ออาหาร..."
+        oninput="onFoodInput(this.value)"
+        onkeydown="if(event.key==='Enter')addFoodByName()"
+        autocomplete="off">
+      <div class="food-suggest" id="foodSuggest"></div>
+    </div>
+    <button class="fd-icon-btn" onclick="openPhotoFood()" title="ถ่ายรูป AI">
+      <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+    </button>
+    <button class="fd-icon-btn" onclick="openScanModal()" title="สแกน Barcode">
+      <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="4" height="16"/><rect x="8" y="4" width="1" height="16"/><rect x="11" y="4" width="2" height="16"/><rect x="15" y="4" width="1" height="16"/><rect x="18" y="4" width="4" height="16"/></svg>
+    </button>
+    <button class="add-btn" onclick="addFoodByName()">+</button>
+  </div>
+
+  <!-- Food Roulette CTA -->
+  <button class="roulette-cta" onclick="spinFoodRoulette()">
+    <span class="roulette-cta-ico">🎲</span>
+    <span class="roulette-cta-txt">
+      <span class="roulette-cta-title">สุ่ม Meal Prep วันนี้</span>
+      <span class="roulette-cta-sub">สุ่มวัตถุดิบ + คำนวณกรัมให้ตรงเป้า ทำทีเดียวแบ่งกินได้ทั้งวัน</span>
+    </span>
+    <span class="roulette-cta-arrow">→</span>
+  </button>
+
+  <!-- Hidden barcode input + hint (compat) -->
+  <input id="barcodeInp" style="display:none;" onkeydown="if(event.key==='Enter')runBarcode()">
+  <div class="food-hint" id="barcodeHint" style="margin-bottom:6px;"></div>
+
+  <!-- ── Meal Diary Sections (MFP-style) ── -->
+  <div class="fd-diary">
+
+    <div class="fd-section" id="fds-breakfast">
+      <div class="fd-section-hd" onclick="selectMealFocus('breakfast')">
+        <div class="fd-section-title">
+          <span class="fd-section-icon">🌅</span>
+          <span class="fd-section-name">เช้า</span>
+        </div>
+        <div class="fd-section-right">
+          <span class="fd-section-kcal" id="fds-kcal-breakfast">—</span>
+          <button class="fd-add-btn" onclick="event.stopPropagation();selectMealFocus('breakfast')">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="fd-section-body" id="fds-body-breakfast"></div>
+    </div>
+
+    <div class="fd-section" id="fds-lunch">
+      <div class="fd-section-hd" onclick="selectMealFocus('lunch')">
+        <div class="fd-section-title">
+          <span class="fd-section-icon">🌞</span>
+          <span class="fd-section-name">กลางวัน</span>
+        </div>
+        <div class="fd-section-right">
+          <span class="fd-section-kcal" id="fds-kcal-lunch">—</span>
+          <button class="fd-add-btn" onclick="event.stopPropagation();selectMealFocus('lunch')">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="fd-section-body" id="fds-body-lunch"></div>
+    </div>
+
+    <div class="fd-section" id="fds-dinner">
+      <div class="fd-section-hd" onclick="selectMealFocus('dinner')">
+        <div class="fd-section-title">
+          <span class="fd-section-icon">🌙</span>
+          <span class="fd-section-name">เย็น</span>
+        </div>
+        <div class="fd-section-right">
+          <span class="fd-section-kcal" id="fds-kcal-dinner">—</span>
+          <button class="fd-add-btn" onclick="event.stopPropagation();selectMealFocus('dinner')">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="fd-section-body" id="fds-body-dinner"></div>
+    </div>
+
+    <div class="fd-section" id="fds-snack">
+      <div class="fd-section-hd" onclick="selectMealFocus('snack')">
+        <div class="fd-section-title">
+          <span class="fd-section-icon">🍎</span>
+          <span class="fd-section-name">ของว่าง</span>
+        </div>
+        <div class="fd-section-right">
+          <span class="fd-section-kcal" id="fds-kcal-snack">—</span>
+          <button class="fd-add-btn" onclick="event.stopPropagation();selectMealFocus('snack')">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="fd-section-body" id="fds-body-snack"></div>
+    </div>
+
+  </div>
+
+  <!-- My Foods / Meals / Recipes -->
+  <div class="food-actions">
+    <button class="food-action-btn" onclick="openMyFoodsModal()">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 002-2V2"/><path d="M7 2v20"/><path d="M21 15V2"/><path d="M18 2a3 3 0 013 3v6h-3"/></svg>
+      อาหารของฉัน
+    </button>
+    <button class="food-action-btn" onclick="openMyMealsModal()">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg>
+      มื้อของฉัน
+    </button>
+    <button class="food-action-btn" onclick="openMyRecipesModal()">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
+      สูตรของฉัน
+    </button>
+  </div>
+
+  <!-- Recently eaten -->
   <div class="qa-section" id="qaSection" style="display:none;">
     <div class="qa-title">เพิ่งกินล่าสุด</div>
     <div class="qa-list" id="qaList"></div>
   </div>
 
-  <div class="water-card">
-    <div class="water-row">
-      <span style="font-size:11px;color:var(--t2);">💧 น้ำวันนี้</span>
-      <span class="water-v" id="waterVal">0 ml</span>
+  <!-- Water -->
+  <div class="water-section">
+    <div class="water-hd">
+      <div>
+        <div class="water-hd-lbl">น้ำ</div>
+        <div class="water-hd-sub">เป้า 3,000 ml / วัน</div>
+      </div>
+      <div class="water-hd-val" id="waterVal">0 ml</div>
     </div>
     <div class="water-cups" id="waterCups"></div>
-    <div style="font-size:10px;color:var(--t3);margin-top:6px;">แต่ละแก้ว = 250 ml · เป้าหมาย 3,000 ml</div>
+    <div class="water-prog-row">
+      <div class="water-prog-bar"><div class="water-prog-fill" id="waterProgFill" style="width:0%;"></div></div>
+      <span class="water-prog-txt" id="waterProgTxt">0 / 3,000 ml</span>
+    </div>
   </div>
 
-  <button class="reset-btn" onclick="resetFood()">ล้างรายการอาหารวันนี้</button>
+  <button class="food-reset-btn" onclick="resetFood()">ล้างรายการอาหารวันนี้</button>
 </div>
 
-<!-- REPORT -->
+<!-- ── MONEY ──────────────────────────────────── -->
+<div class="pg" id="pg-money">
+
+  <!-- Period — segmented control -->
+  <div class="money-seg">
+    <button class="mpbtn on" onclick="setMoneyPeriod('today',this)">วันนี้</button>
+    <button class="mpbtn" onclick="setMoneyPeriod('week',this)">สัปดาห์</button>
+    <button class="mpbtn" onclick="setMoneyPeriod('month',this)">เดือนนี้</button>
+  </div>
+
+  <!-- Hero — Copilot style -->
+  <div class="money-hero">
+    <div class="money-bal-lbl">คงเหลือ</div>
+    <div class="money-bal" id="moneyBal">฿0</div>
+    <div class="money-split">
+      <div class="money-split-item">
+        <div class="money-split-icon money-in-icon">
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+        </div>
+        <div>
+          <div class="money-split-val c-green" id="moneyIn">฿0</div>
+          <div class="money-split-lbl">รายรับ</div>
+        </div>
+      </div>
+      <div class="money-split-div"></div>
+      <div class="money-split-item">
+        <div class="money-split-icon money-out-icon">
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
+        </div>
+        <div>
+          <div class="money-split-val c-red" id="moneyOut">฿0</div>
+          <div class="money-split-lbl">รายจ่าย</div>
+        </div>
+      </div>
+    </div>
+    <div class="money-indicators">
+      <div class="money-ind-chip" id="moneyDailyChip" style="display:none;">
+        <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <span id="moneyDailyTxt"></span>
+      </div>
+      <div class="money-ind-chip money-forecast-chip" id="moneyForecastChip" style="display:none;">
+        <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+        <span id="moneyForecastTxt"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Budget — moved up, visible always -->
+  <div class="money-budget-card">
+    <div class="money-budget-hd">
+      <span class="money-budget-title">งบประมาณ</span>
+      <button class="budget-edit-btn" onclick="openBudgetModal()">ตั้งงบ</button>
+    </div>
+    <div id="budgetSection"></div>
+  </div>
+
+  <!-- Input -->
+  <div class="money-input-card">
+    <div class="money-inp-row">
+      <div class="money-inp-wrap">
+        <span class="money-inp-prefix">฿</span>
+        <input class="money-inp-field" id="moneyInp"
+          placeholder="กาแฟ 80 · เงินเดือน 30000"
+          onkeydown="if(event.key==='Enter')addTransaction()"
+          oninput="previewMoneyCategory(this.value)">
+        <div class="money-cat-preview" id="moneyCatPreview" style="display:none;"></div>
+      </div>
+      <button class="add-btn" onclick="addTransaction()">+</button>
+    </div>
+    <div class="money-inp-actions">
+      <button class="sec-btn" onclick="openReceiptModal()">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="12" y2="16"/></svg>
+        ใบเสร็จ
+      </button>
+      <button class="sec-btn" onclick="openRecurringModal()">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+        ประจำ
+      </button>
+      <button class="sec-btn" onclick="exportCSV()">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        CSV
+      </button>
+    </div>
+  </div>
+
+  <!-- Category chart — all periods -->
+  <div id="moneySpendChart" style="display:none;margin-bottom:10px;">
+    <div class="chart-card">
+      <div class="chart-title">รายจ่ายตามหมวด</div>
+      <div class="chart-wrap" style="height:160px;"><canvas id="moneyChartCanvas"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Transaction list -->
+  <div id="monthlySummary"></div>
+  <div id="moneyList"></div>
+
+</div>
+
+<!-- ── HEALTH ─────────────────────────────────── -->
+<div class="pg" id="pg-health">
+
+  <!-- Score Hero (Oura-style) -->
+  <div class="h-score-card">
+    <div class="h-score-header">
+      <div>
+        <div class="h-score-num" id="healthScore">—</div>
+        <div class="h-score-grade" id="healthGrade">วันนี้</div>
+        <div class="h-score-lbl">คะแนนสุขภาพ</div>
+      </div>
+    </div>
+    <div class="h-score-rings-row">
+      <!-- Recovery ring -->
+      <div class="h-ring-item">
+        <div class="h-ring-wrap">
+          <svg viewBox="0 0 72 72" width="68" height="68">
+            <circle class="h-ring-track" cx="36" cy="36" r="28"/>
+            <circle class="h-ring-fill" id="scoreRingRecovery" cx="36" cy="36" r="28"
+              stroke-dasharray="175.9" stroke-dashoffset="175.9"
+              transform="rotate(-90 36 36)" stroke="var(--green)"/>
+          </svg>
+          <div class="h-ring-center-val" id="recoverySub" style="color:var(--green);">—</div>
+        </div>
+        <div class="h-ring-lbl">Recovery</div>
+      </div>
+      <!-- Exercise ring -->
+      <div class="h-ring-item">
+        <div class="h-ring-wrap">
+          <svg viewBox="0 0 72 72" width="68" height="68">
+            <circle class="h-ring-track" cx="36" cy="36" r="28"/>
+            <circle class="h-ring-fill" id="scoreRingExercise" cx="36" cy="36" r="28"
+              stroke-dasharray="175.9" stroke-dashoffset="175.9"
+              transform="rotate(-90 36 36)" stroke="var(--lime)"/>
+          </svg>
+          <div class="h-ring-center-val" id="exerciseSub" style="color:var(--lime);">—</div>
+        </div>
+        <div class="h-ring-lbl">Exercise</div>
+      </div>
+      <!-- Sleep ring -->
+      <div class="h-ring-item">
+        <div class="h-ring-wrap">
+          <svg viewBox="0 0 72 72" width="68" height="68">
+            <circle class="h-ring-track" cx="36" cy="36" r="28"/>
+            <circle class="h-ring-fill" id="scoreRingSleep" cx="36" cy="36" r="28"
+              stroke-dasharray="175.9" stroke-dashoffset="175.9"
+              transform="rotate(-90 36 36)" stroke="var(--blue)"/>
+          </svg>
+          <div class="h-ring-center-val" id="sleepSub" style="color:var(--blue);">—</div>
+        </div>
+        <div class="h-ring-lbl">Sleep</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Metric Tiles 2×3 (Apple Health style) -->
+  <div class="h-tiles">
+    <div class="h-tile" id="tileWeight">
+      <div class="h-tile-ico" style="background:rgba(184,240,0,.1);">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="var(--lime)" stroke-width="2" stroke-linecap="round"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/><path d="M8 12h8M12 8l4 4-4 4"/></svg>
+      </div>
+      <div class="h-tile-val c-lime" id="tileWeightVal">—</div>
+      <div class="h-tile-lbl">น้ำหนัก</div>
+      <div class="h-tile-sub" id="tileWeightSub">ยังไม่บันทึก</div>
+    </div>
+    <div class="h-tile" id="tileFat">
+      <div class="h-tile-ico" style="background:rgba(245,158,11,.1);">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="var(--amber)" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+      </div>
+      <div class="h-tile-val c-amber" id="tileFatVal">—</div>
+      <div class="h-tile-lbl">ไขมัน</div>
+      <div class="h-tile-sub" id="tileFatSub">% body fat</div>
+    </div>
+    <div class="h-tile" id="tileExercise">
+      <div class="h-tile-ico" style="background:rgba(6,214,160,.1);">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="var(--teal)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+      </div>
+      <div class="h-tile-val c-teal" id="tileExerciseVal">—</div>
+      <div class="h-tile-lbl">ออกกำลัง</div>
+      <div class="h-tile-sub" id="tileExerciseSub">วันนี้</div>
+    </div>
+    <div class="h-tile" id="tileSleep">
+      <div class="h-tile-ico" style="background:rgba(96,165,250,.1);">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="var(--blue)" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      </div>
+      <div class="h-tile-val c-blue" id="tileSleepVal">—</div>
+      <div class="h-tile-lbl">การนอน</div>
+      <div class="h-tile-sub" id="tileSleepSub">ยังไม่บันทึก</div>
+    </div>
+    <div class="h-tile" id="tileMeds">
+      <div class="h-tile-ico" style="background:rgba(168,85,247,.1);">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="var(--purple)" stroke-width="2" stroke-linecap="round"><rect x="8" y="2" width="8" height="20" rx="4"/><path d="M8 12h8"/></svg>
+      </div>
+      <div class="h-tile-val" id="tileMedsVal" style="color:var(--purple);">—</div>
+      <div class="h-tile-lbl">ยาวันนี้</div>
+      <div class="h-tile-sub" id="tileMedsSub">ทานยาแล้ว</div>
+    </div>
+    <div class="h-tile" id="tileMood">
+      <div class="h-tile-ico" style="background:rgba(232,89,12,.1);">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="var(--orange)" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9" stroke-width="3"/><line x1="15" y1="9" x2="15.01" y2="9" stroke-width="3"/></svg>
+      </div>
+      <div class="h-tile-val" id="tileMoodVal" style="color:var(--orange);font-size:28px;">—</div>
+      <div class="h-tile-lbl">อารมณ์</div>
+      <div class="h-tile-sub" id="tileMoodSub">วันนี้</div>
+    </div>
+  </div>
+
+  <!-- Phase Tracker (NEW) -->
+  <div class="health-card">
+    <div class="health-card-hd">
+      <span class="health-card-title">Skin Phase Tracker</span>
+      <span id="phaseHeaderNote" style="font-size:10px;color:var(--t3);font-family:var(--mono);"></span>
+    </div>
+    <div id="phaseTrackerContent"></div>
+  </div>
+
+  <!-- Exercise -->
+  <div class="health-card">
+    <div class="health-card-hd">
+      <span class="health-card-title">ออกกำลังกาย</span>
+      <button class="budget-edit-btn" onclick="openExerciseModal()">+ บันทึก</button>
+    </div>
+    <div id="exerciseLogToday"></div>
+    <div id="exerciseCalToday" style="font-size:11px;color:var(--t3);text-align:right;margin-top:4px;font-family:var(--mono);"></div>
+  </div>
+
+  <!-- Sleep Log (NEW) -->
+  <div class="health-card">
+    <div class="health-card-hd">
+      <span class="health-card-title">การนอนหลับ</span>
+      <span id="sleepTodayDisplay" style="font-family:var(--mono);font-size:13px;color:var(--blue);">—</span>
+    </div>
+    <div class="sleep-time-row">
+      <div class="sleep-time-wrap">
+        <div class="sleep-time-lbl">เข้านอน</div>
+        <input class="food-inp" id="sleepBedtime" type="time" value="22:30" style="font-family:var(--mono);width:100%;">
+      </div>
+      <div class="sleep-time-wrap">
+        <div class="sleep-time-lbl">ตื่นนอน</div>
+        <input class="food-inp" id="sleepWakeTime" type="time" value="07:00" style="font-family:var(--mono);width:100%;">
+      </div>
+    </div>
+    <div class="sleep-quality-section">
+      <div class="sleep-time-lbl" style="margin-bottom:6px;">คุณภาพการนอน</div>
+      <div class="sleep-q-row">
+        <button class="sleep-q-btn" onclick="selectSleepQuality(1,this)">1</button>
+        <button class="sleep-q-btn" onclick="selectSleepQuality(2,this)">2</button>
+        <button class="sleep-q-btn on" onclick="selectSleepQuality(3,this)">3</button>
+        <button class="sleep-q-btn" onclick="selectSleepQuality(4,this)">4</button>
+        <button class="sleep-q-btn" onclick="selectSleepQuality(5,this)">5</button>
+      </div>
+      <input type="hidden" id="sleepQualityVal" value="3">
+    </div>
+    <button class="add-btn" style="width:100%;height:42px;border-radius:10px;font-size:14px;font-weight:700;margin-top:10px;" onclick="logSleep()">บันทึกการนอน</button>
+    <div id="sleepLogList" style="margin-top:10px;"></div>
+  </div>
+
+  <!-- Weight (merged: Input + Prediction) -->
+  <div class="health-card">
+    <div class="health-card-hd">
+      <span class="health-card-title">น้ำหนัก & ร่างกาย</span>
+      <div class="wt-today" id="wtToday">—</div>
+    </div>
+    <div class="wt-inp-row">
+      <input class="food-inp" id="wtInp" type="number" step="0.1" placeholder="น้ำหนัก kg"
+        style="flex:1;min-width:80px;" onkeydown="if(event.key==='Enter')logWeight()">
+      <input class="food-inp" id="wtFatInp" type="number" step="0.1" placeholder="ไขมัน %"
+        style="flex:1;min-width:70px;">
+      <input class="food-inp" id="wtMuscleInp" type="number" step="0.1" placeholder="กล้าม kg"
+        style="flex:1;min-width:70px;">
+    </div>
+    <button class="m-btn m-ghost" style="width:100%;font-size:11px;padding:6px;margin-bottom:6px;" onclick="toggleFullScan()" id="fullScanToggleBtn">+ ข้อมูลสแกนเพิ่มเติม</button>
+    <div class="wt-inp-row" id="fullScanRow" style="display:none;">
+      <input class="food-inp" id="wtWaterInp" type="number" step="0.1" placeholder="น้ำ %"
+        style="flex:1;min-width:60px;">
+      <input class="food-inp" id="wtBoneInp" type="number" step="0.1" placeholder="กระดูก kg"
+        style="flex:1;min-width:60px;">
+      <input class="food-inp" id="wtVisceralInp" type="number" step="0.1" placeholder="ไขมันช่องท้อง"
+        style="flex:1;min-width:60px;">
+      <input class="food-inp" id="wtBmrInp" type="number" step="1" placeholder="BMR kcal"
+        style="flex:1;min-width:60px;">
+    </div>
+    <button class="add-btn" style="width:100%;height:42px;border-radius:10px;font-size:14px;font-weight:700;margin-top:0;" onclick="logWeight()">บันทึก</button>
+    <div id="wtStats"></div>
+    <div id="wtPredictSection" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--bd);"></div>
+  </div>
+
+  <!-- Mood -->
+  <div class="health-card">
+    <div class="health-card-hd">
+      <span class="health-card-title">พลังงาน & อารมณ์</span>
+    </div>
+    <div class="mood-row" id="moodRow">
+      <button class="mood-btn" onclick="logMood(1)">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M16 16s-1.5-2-4-2-4 2-4 2"/><line x1="9" y1="9" x2="9.01" y2="9" stroke-width="3"/><line x1="15" y1="9" x2="15.01" y2="9" stroke-width="3"/></svg>
+        <span>ต่ำมาก</span>
+      </button>
+      <button class="mood-btn" onclick="logMood(2)">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 15.09a4 4 0 015.82 0"/><line x1="9" y1="9" x2="9.01" y2="9" stroke-width="3"/><line x1="15" y1="9" x2="15.01" y2="9" stroke-width="3"/></svg>
+        <span>ต่ำ</span>
+      </button>
+      <button class="mood-btn" onclick="logMood(3)">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="8" y1="15" x2="16" y2="15"/><line x1="9" y1="9" x2="9.01" y2="9" stroke-width="3"/><line x1="15" y1="9" x2="15.01" y2="9" stroke-width="3"/></svg>
+        <span>ปกติ</span>
+      </button>
+      <button class="mood-btn" onclick="logMood(4)">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9" stroke-width="3"/><line x1="15" y1="9" x2="15.01" y2="9" stroke-width="3"/></svg>
+        <span>ดี</span>
+      </button>
+      <button class="mood-btn" onclick="logMood(5)">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M8 13s1.5 3 4 3 4-3 4-3"/><path d="M9 9l.5.5M15 9l-.5.5"/></svg>
+        <span>ดีมาก</span>
+      </button>
+    </div>
+    <div class="mood-result" id="moodResult">เลือกระดับพลังงานของวันนี้</div>
+  </div>
+
+  <!-- Medications -->
+  <div class="health-card">
+    <div class="health-card-hd">
+      <span class="health-card-title">ยา & อาหารเสริม</span>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span id="medProgress" style="font-size:10px;color:var(--t3);font-family:var(--mono);"></span>
+        <button class="budget-edit-btn" onclick="openMedModal()">จัดการ</button>
+      </div>
+    </div>
+    <div id="medListToday"></div>
+  </div>
+
+  <!-- Illness -->
+  <div class="health-card" id="illnessCard"></div>
+
+
+</div>
+
+<!-- ── REPORT ──────────────────────────────────── -->
 <div class="pg" id="pg-report">
+
+  <!-- Period Tabs -->
   <div class="report-tabs">
     <div class="rtab on" onclick="setRP('week',this)">สัปดาห์</div>
     <div class="rtab" onclick="setRP('month',this)">เดือน</div>
-    <div class="rtab" onclick="setRP('year',this)">ปี</div>
   </div>
-  <div class="streak-card">
-    <div class="streak-num" id="streakNum">0</div>
-    <div><div class="s-lbl">วันติดต่อกัน</div><div class="s-sub" id="streakSub">—</div></div>
-  </div>
-  <div class="stat-row">
-    <div class="stat-box"><div class="stat-lbl">แคลอรี่เฉลี่ย</div><div class="stat-v c-amber" id="avgCal">—</div><div class="stat-sub">kcal/วัน</div></div>
-    <div class="stat-box"><div class="stat-lbl">โปรตีนเฉลี่ย</div><div class="stat-v c-blue" id="avgProt">—</div><div class="stat-sub">g/วัน</div></div>
-    <div class="stat-box"><div class="stat-lbl">task เสร็จ</div><div class="stat-v c-lime" id="avgTask">—</div><div class="stat-sub">% เฉลี่ย</div></div>
-  </div>
-  <div class="chart-card"><div class="chart-title">แคลอรี่ vs เป้าหมาย</div><div class="chart-wrap"><canvas id="calChart"></canvas></div></div>
-  <div class="chart-card"><div class="chart-title">โปรตีน (g)</div><div class="chart-wrap"><canvas id="protChart"></canvas></div></div>
-  <div class="chart-card"><div class="chart-title">น้ำ (ml)</div><div class="chart-wrap"><canvas id="waterChart"></canvas></div></div>
-  <div class="chart-card"><div class="chart-title">task เสร็จ (%)</div><div class="chart-wrap"><canvas id="taskChart"></canvas></div></div>
 
-  <div class="slbl" style="margin-top:16px;">⚠️ สุขภาพ</div>
-  <div class="alert-card alert-danger"><strong>WBC 11,160</strong>เม็ดเลือดขาวสูง ต้องพบแพทย์หาสาเหตุ</div>
-  <div class="alert-card alert-danger"><strong>Cholesterol 268 · LDL 186</strong>ไขมันในเลือดสูงมาก ลดของทอด เพิ่มปลา omega-3</div>
-  <div class="alert-card alert-warn"><strong>HDL 43</strong>ไขมันดีต่ำ เป้า >60 — เพิ่มถั่ว อะโวคาโด cardio</div>
-  <div class="alert-card alert-good"><strong>ค่าปกติดี</strong>น้ำตาล 94 · ตับ ปกติ · ไต eGFR 97.7 · กล้ามเนื้อ 64.9% ยอดเยี่ยม</div>
-  <div class="alert-card alert-info"><strong>ตรวจเพิ่มรอบต่อไป</strong>Vitamin D · B12 · Ferritin · Thyroid (TSH)</div>
-
-  <div class="slbl">💊 Supplement</div>
-  <div style="background:var(--s1);border:1px solid var(--bd);border-radius:var(--r);overflow:hidden;margin-bottom:8px;">
-    <div class="row" style="padding:8px 14px;"><span class="c-red">Magnesium Glycinate 300mg คืน</span><span class="row-r c-red">ด่วน</span></div>
-    <div class="row" style="padding:8px 14px;"><span class="c-red">Vitamin D3 2,000–4,000 IU เช้า</span><span class="row-r c-red">ด่วน</span></div>
-    <div class="row" style="padding:8px 14px;"><span class="c-amber">Omega-3 Fish Oil 1,000mg</span><span class="row-r c-amber">เร่งด่วน</span></div>
-    <div class="row" style="padding:8px 14px;border-bottom:none;"><span class="c-amber">Zinc 25mg เช้า</span><span class="row-r c-amber">เร่งด่วน</span></div>
+  <!-- Hero: Streak + Avg Health Score -->
+  <div class="rpt-hero">
+    <div class="rpt-streak">
+      <div class="rpt-streak-num" id="streakNum">0</div>
+      <div>
+        <div class="rpt-streak-lbl">วันติดต่อกัน</div>
+        <div class="rpt-streak-sub" id="streakSub">—</div>
+      </div>
+    </div>
+    <div class="rpt-hero-sep"></div>
+    <div class="rpt-score-avg">
+      <div class="rpt-score-num" id="rptAvgScore">—</div>
+      <div class="rpt-score-lbl">health score<br>เฉลี่ย</div>
+    </div>
   </div>
+
+  <!-- Period Comparison Sub-header -->
+  <div class="rpt-period-hdr">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--t3);flex-shrink:0;"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+    <span class="rpt-period-label" id="rptPeriodTxt">สัปดาห์นี้</span>
+    <span class="rpt-vs-badge" id="rptVsBadge">vs สัปดาห์ที่แล้ว</span>
+  </div>
+
+  <!-- Summary Tiles 2×2 -->
+  <div class="rpt-tiles">
+    <div class="rpt-tile">
+      <div class="rpt-tile-top">
+        <div class="rpt-tile-ico" style="background:rgba(240,160,32,0.15);">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--amber);"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/><path d="M12 6v6l4 2"/></svg>
+        </div>
+        <div class="rpt-tile-trend" id="trendCal">—</div>
+      </div>
+      <div class="rpt-tile-val c-amber" id="rptAvgCal">—</div>
+      <div class="rpt-tile-lbl">แคลอรี่/วัน</div>
+    </div>
+    <div class="rpt-tile">
+      <div class="rpt-tile-top">
+        <div class="rpt-tile-ico" style="background:rgba(74,184,240,0.15);">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--blue);"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
+        </div>
+        <div class="rpt-tile-trend" id="trendProt">—</div>
+      </div>
+      <div class="rpt-tile-val c-blue" id="rptAvgProt">—</div>
+      <div class="rpt-tile-lbl">โปรตีน/วัน</div>
+    </div>
+    <div class="rpt-tile">
+      <div class="rpt-tile-top">
+        <div class="rpt-tile-ico" style="background:rgba(184,240,0,0.15);">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--lime);"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+        </div>
+        <div class="rpt-tile-trend" id="trendEx">—</div>
+      </div>
+      <div class="rpt-tile-val c-lime" id="rptAvgEx">—</div>
+      <div class="rpt-tile-lbl">ออกกำลัง/วัน</div>
+    </div>
+    <div class="rpt-tile">
+      <div class="rpt-tile-top">
+        <div class="rpt-tile-ico" style="background:rgba(120,100,240,0.15);">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:#8878f0;"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        </div>
+        <div class="rpt-tile-trend" id="trendSleep">—</div>
+      </div>
+      <div class="rpt-tile-val" style="color:#8878f0;" id="rptAvgSleep">—</div>
+      <div class="rpt-tile-lbl">การนอน/วัน</div>
+    </div>
+  </div>
+
+  <!-- Hidden legacy IDs for JS compat -->
+  <span id="avgCal" style="display:none;"></span>
+  <span id="avgProt" style="display:none;"></span>
+  <span id="avgTask" style="display:none;"></span>
+
+  <!-- Oura-style Insight Cards -->
+  <div id="weeklyReview" style="margin-bottom:10px;"></div>
+
+  <!-- Weight Trend Chart -->
+  <div class="chart-card">
+    <div class="chart-title">น้ำหนัก (kg)</div>
+    <div class="chart-wrap"><canvas id="weightChart"></canvas></div>
+  </div>
+
+  <!-- Calorie Bar Chart -->
+  <div class="chart-card">
+    <div class="chart-title">แคลอรี่ vs เป้าหมาย</div>
+    <div class="chart-wrap"><canvas id="calChart"></canvas></div>
+  </div>
+
+  <!-- Mood Trend Chart -->
+  <div class="chart-card">
+    <div class="chart-title">อารมณ์ & พลังงาน</div>
+    <div class="chart-wrap"><canvas id="moodChart"></canvas></div>
+  </div>
+
+  <!-- Sleep Trend Chart -->
+  <div class="chart-card">
+    <div class="chart-title">การนอนหลับ (ชม.)</div>
+    <div class="chart-wrap"><canvas id="sleepChart"></canvas></div>
+  </div>
+
+  <!-- Money Period Summary -->
+  <div id="rptMoneySummary" style="margin-bottom:10px;"></div>
+
+  <!-- Goals Section -->
+  <div class="slbl" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+    <span>เป้าหมายของฉัน</span>
+    <button class="goal-add-btn" onclick="openGoalForm()">+ เพิ่ม</button>
+  </div>
+  <div id="goalSection"></div>
+
+  <!-- Travel Fund (coin gamification) -->
+  <div class="slbl" style="margin-bottom:8px;">🏝️ กระปุกเที่ยว</div>
+  <div id="travelFundCard" style="margin-bottom:14px;"></div>
+
+  <!-- Legacy canvases (hidden, kept for JS destroy compat) -->
+  <canvas id="protChart" style="display:none;height:0;width:0;"></canvas>
+  <canvas id="waterChart" style="display:none;height:0;width:0;"></canvas>
+  <canvas id="taskChart" style="display:none;height:0;width:0;"></canvas>
 </div>
 
 </div><!-- /pages -->
 
-<!-- TIMER MODAL -->
+<!-- ══ NAVIGATION ════════════════════════════════ -->
+<div class="nav">
+  <div class="nbtn on" onclick="showPg('today')">
+    <span class="n-ico">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="4" width="18" height="18" rx="2"/>
+        <line x1="16" y1="2" x2="16" y2="6"/>
+        <line x1="8" y1="2" x2="8" y2="6"/>
+        <line x1="3" y1="10" x2="21" y2="10"/>
+        <circle cx="8" cy="15" r="1" fill="currentColor"/>
+        <circle cx="12" cy="15" r="1" fill="currentColor"/>
+        <circle cx="16" cy="15" r="1" fill="currentColor"/>
+      </svg>
+    </span>
+    <span class="n-lbl">วันนี้</span>
+  </div>
+  <div class="nbtn" onclick="showPg('food')">
+    <span class="n-ico">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 002-2V2"/>
+        <path d="M7 2v20"/>
+        <path d="M21 15V2"/>
+        <path d="M18 2a3 3 0 013 3v6h-3"/>
+      </svg>
+    </span>
+    <span class="n-lbl">อาหาร</span>
+  </div>
+  <div class="nbtn" onclick="showPg('money')">
+    <span class="n-ico">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="12" y1="1" x2="12" y2="23"/>
+        <path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
+      </svg>
+    </span>
+    <span class="n-lbl">เงิน</span>
+  </div>
+  <div class="nbtn" onclick="showPg('health')">
+    <span class="n-ico">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/>
+      </svg>
+    </span>
+    <span class="n-lbl">สุขภาพ</span>
+  </div>
+  <div class="nbtn" onclick="showPg('report')">
+    <span class="n-ico">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="18" y1="20" x2="18" y2="10"/>
+        <line x1="12" y1="20" x2="12" y2="4"/>
+        <line x1="6" y1="20" x2="6" y2="14"/>
+      </svg>
+    </span>
+    <span class="n-lbl">รายงาน</span>
+  </div>
+</div>
+
+<!-- ══ MODALS ════════════════════════════════════ -->
+
+<!-- PHOTO FOOD -->
+<div class="modal-bg" id="photoModal">
+  <div class="modal" style="max-width:340px;">
+    <div class="m-label">ถ่ายรูปอาหาร — AI ประเมิน</div>
+    <div class="photo-preview">
+      <video id="photoVideo" playsinline autoplay muted></video>
+      <canvas id="photoCanvas" style="display:none;width:100%;height:100%;object-fit:cover;border-radius:10px;"></canvas>
+    </div>
+    <div id="photoResult" class="photo-result-txt"></div>
+    <div class="m-btns">
+      <button class="m-btn m-ghost" onclick="closePhotoFood()">ปิด</button>
+      <button class="m-btn m-primary" id="photoSnapBtn" onclick="snapPhotoFood()">ถ่าย</button>
+    </div>
+  </div>
+</div>
+
+<!-- TIMER -->
 <div class="modal-bg" id="timerModal">
   <div class="modal">
-    <div class="m-label">⏱ จับเวลา</div>
+    <div class="m-label">จับเวลา</div>
     <div class="m-task" id="timerLabel">—</div>
     <div class="ring-wrap">
       <svg width="130" height="130" viewBox="0 0 130 130">
         <circle class="ring-bg" cx="65" cy="65" r="54"/>
-        <circle class="ring-fg" id="timerRing" cx="65" cy="65" r="54" stroke-dasharray="339.3" stroke-dashoffset="0"/>
+        <circle class="ring-fg" id="timerRing" cx="65" cy="65" r="54"
+          stroke-dasharray="339.3" stroke-dashoffset="0"
+          transform="rotate(-90 65 65)"/>
       </svg>
       <div class="ring-num" id="timerNum">0:00</div>
     </div>
@@ -177,20 +968,18 @@
   </div>
 </div>
 
-<!-- SCAN MODAL -->
+<!-- SCAN -->
 <div class="scan-modal" id="scanModal">
   <div class="scan-header">
-    <span class="scan-title">📷 สแกน Barcode</span>
+    <span class="scan-title">สแกน Barcode</span>
     <button class="scan-close" onclick="closeScanModal()">✕</button>
   </div>
   <div class="scan-view">
     <video id="scanVideo" playsinline autoplay muted></video>
     <div class="scan-overlay">
       <div class="scan-frame">
-        <div class="scan-corner sc-tl"></div>
-        <div class="scan-corner sc-tr"></div>
-        <div class="scan-corner sc-bl"></div>
-        <div class="scan-corner sc-br"></div>
+        <div class="scan-corner sc-tl"></div><div class="scan-corner sc-tr"></div>
+        <div class="scan-corner sc-bl"></div><div class="scan-corner sc-br"></div>
         <div class="scan-line"></div>
       </div>
       <div class="scan-hint" id="scanHint">เล็งกล้องที่บาร์โค้ด</div>
@@ -201,17 +990,482 @@
   </div>
 </div>
 
-<!-- NAV -->
-<div class="nav">
-  <div class="nbtn on" onclick="showPg('today')"><span class="n-ico">📋</span><span class="n-lbl">TODAY</span></div>
-  <div class="nbtn" onclick="showPg('food')"><span class="n-ico">🥗</span><span class="n-lbl">FOOD</span></div>
-  <div class="nbtn" onclick="showPg('report')"><span class="n-ico">📊</span><span class="n-lbl">REPORT</span></div>
+<!-- MOOD QUICK MODAL -->
+<div class="modal-bg" id="moodQuickModal">
+  <div class="modal" style="max-width:300px;text-align:center;">
+    <div class="m-label" style="margin-bottom:6px;">พลังงานวันนี้เป็นยังไง?</div>
+    <div id="moodQuickResult" style="font-size:12px;color:var(--t3);min-height:18px;margin-bottom:14px;"></div>
+    <div style="display:flex;gap:6px;margin-bottom:16px;">
+      <button class="mq-btn" onclick="selectMoodQuick(1)">
+        <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M16 16s-1.5-2-4-2-4 2-4 2"/><line x1="9" y1="9" x2="9.01" y2="9" stroke-width="3"/><line x1="15" y1="9" x2="15.01" y2="9" stroke-width="3"/></svg>
+        <span>ต่ำมาก</span>
+      </button>
+      <button class="mq-btn" onclick="selectMoodQuick(2)">
+        <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 15.09a4 4 0 015.82 0"/><line x1="9" y1="9" x2="9.01" y2="9" stroke-width="3"/><line x1="15" y1="9" x2="15.01" y2="9" stroke-width="3"/></svg>
+        <span>ต่ำ</span>
+      </button>
+      <button class="mq-btn" onclick="selectMoodQuick(3)">
+        <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="8" y1="15" x2="16" y2="15"/><line x1="9" y1="9" x2="9.01" y2="9" stroke-width="3"/><line x1="15" y1="9" x2="15.01" y2="9" stroke-width="3"/></svg>
+        <span>ปกติ</span>
+      </button>
+      <button class="mq-btn" onclick="selectMoodQuick(4)">
+        <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9" stroke-width="3"/><line x1="15" y1="9" x2="15.01" y2="9" stroke-width="3"/></svg>
+        <span>ดี</span>
+      </button>
+      <button class="mq-btn" onclick="selectMoodQuick(5)">
+        <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M8 13s1.5 3 4 3 4-3 4-3"/><path d="M9 9l.5.5M15 9l-.5.5"/></svg>
+        <span>ดีมาก</span>
+      </button>
+    </div>
+    <button class="m-btn m-ghost" style="width:100%;" onclick="closeMoodQuickModal()">ยกเลิก</button>
+  </div>
 </div>
 
+<!-- WEIGHT QUICK MODAL -->
+<div class="modal-bg" id="weightQuickModal">
+  <div class="modal" style="max-width:260px;text-align:center;">
+    <div class="m-label" style="margin-bottom:14px;">บันทึกน้ำหนัก</div>
+    <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:16px;">
+      <input id="wqInp" type="number" inputmode="decimal" step="0.1" min="30" max="200"
+        class="food-inp" placeholder="68.5"
+        style="width:100px;font-size:28px;font-family:var(--f-head);font-weight:800;text-align:center;padding:10px 8px;letter-spacing:1px;">
+      <span style="font-size:16px;color:var(--t3);font-weight:600;">kg</span>
+    </div>
+    <div style="display:flex;gap:6px;justify-content:center;margin-bottom:14px;">
+      <button class="sq-q-btn" style="font-size:11px;flex:none;padding:7px 12px;" onclick="adjustWQ(-0.5)">−0.5</button>
+      <button class="sq-q-btn" style="font-size:11px;flex:none;padding:7px 12px;" onclick="adjustWQ(-0.1)">−0.1</button>
+      <button class="sq-q-btn" style="font-size:11px;flex:none;padding:7px 12px;" onclick="adjustWQ(+0.1)">+0.1</button>
+      <button class="sq-q-btn" style="font-size:11px;flex:none;padding:7px 12px;" onclick="adjustWQ(+0.5)">+0.5</button>
+    </div>
+    <button class="m-btn m-primary" style="width:100%;margin-bottom:6px;" onclick="logWeightQuick()">บันทึก</button>
+    <button class="m-btn m-ghost" style="width:100%;" onclick="closeWeightQuickModal()">ยกเลิก</button>
+  </div>
+</div>
+
+<!-- SLEEP QUICK MODAL -->
+<div class="modal-bg" id="sleepQuickModal">
+  <div class="modal" style="max-width:280px;text-align:left;">
+    <div class="m-label" style="margin-bottom:14px;">บันทึกการนอน</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+      <div>
+        <div style="font-size:10px;color:var(--t3);margin-bottom:5px;font-weight:600;">เข้านอน</div>
+        <input id="sqBedtime" type="time" class="if-time-inp" value="22:30" style="width:100%;">
+      </div>
+      <div>
+        <div style="font-size:10px;color:var(--t3);margin-bottom:5px;font-weight:600;">ตื่นนอน</div>
+        <input id="sqWakeTime" type="time" class="if-time-inp" value="07:00" style="width:100%;">
+      </div>
+    </div>
+    <div style="margin-bottom:14px;">
+      <div style="font-size:10px;color:var(--t3);margin-bottom:6px;font-weight:600;">คุณภาพการนอน</div>
+      <div style="display:flex;gap:4px;" id="sqQualityBtns">
+        <button class="sq-q-btn on" data-q="1" onclick="setSqQuality(1)">1</button>
+        <button class="sq-q-btn" data-q="2" onclick="setSqQuality(2)">2</button>
+        <button class="sq-q-btn" data-q="3" onclick="setSqQuality(3)">3</button>
+        <button class="sq-q-btn" data-q="4" onclick="setSqQuality(4)">4</button>
+        <button class="sq-q-btn" data-q="5" onclick="setSqQuality(5)">5</button>
+      </div>
+    </div>
+    <button class="m-btn m-primary" style="width:100%;margin-bottom:6px;" onclick="logSleepQuick()">บันทึก</button>
+    <button class="m-btn m-ghost" style="width:100%;" onclick="closeSleepQuickModal()">ยกเลิก</button>
+  </div>
+</div>
+
+<!-- SETTINGS -->
+<div class="modal-bg" id="settingsPanel">
+  <div class="modal" style="max-width:320px;text-align:left;">
+
+    <!-- Header -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <div class="m-label" style="margin-bottom:0;">ตั้งค่า</div>
+      <button class="icon-btn" onclick="closeSettings()" aria-label="ปิด">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+
+    <!-- Section: Body Profile -->
+    <div class="settings-sec">
+      <div class="settings-sec-hd">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM4 22v-2a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v2"/></svg>
+        <span>ข้อมูลร่างกาย</span>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;">
+        <span style="font-size:12px;color:var(--t2);">ส่วนสูง</span>
+        <div style="display:flex;align-items:center;gap:5px;">
+          <input id="heightInp" type="number" min="100" max="250" class="food-inp"
+            style="width:64px;padding:6px 8px;font-size:12px;text-align:center;" onchange="saveUserHeight()">
+          <span style="font-size:11px;color:var(--t3);">cm</span>
+        </div>
+      </div>
+      <div style="font-size:10px;color:var(--t3);margin-top:4px;">ใช้คำนวณ BMI และเป้าแคลอรี่</div>
+    </div>
+
+    <!-- Section: Notifications -->
+    <div class="settings-sec">
+      <div class="settings-sec-hd">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <span>การแจ้งเตือน</span>
+      </div>
+      <div id="fixedNotifList"></div>
+      <div style="font-size:10px;font-weight:600;color:var(--t3);margin:10px 0 4px;text-transform:uppercase;letter-spacing:.8px;">เพิ่มเติม</div>
+      <div id="customNotifList"></div>
+      <div style="display:flex;gap:6px;margin-bottom:6px;">
+        <input id="cnTime" type="time" class="food-inp" style="width:86px;flex:none;font-size:12px;">
+        <input id="cnTitle" class="food-inp" placeholder="ชื่อแจ้งเตือน" style="flex:1;font-size:12px;">
+        <button class="add-btn" style="width:44px;flex:none;font-size:18px;padding:0;" onclick="addCustomNotif()">+</button>
+      </div>
+      <button class="m-btn m-ghost" style="width:100%;font-size:12px;" onclick="testNotification()">ทดสอบการแจ้งเตือน</button>
+      <div style="font-size:10px;color:var(--t3);margin-top:6px;line-height:1.5;">เพิ่มลงหน้าจอหลักเพื่อรับแจ้งเตือนพื้นหลัง</div>
+    </div>
+
+    <!-- Section: Finance -->
+    <div class="settings-sec">
+      <div class="settings-sec-hd">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        <span>การเงิน</span>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;">
+        <span style="font-size:12px;color:var(--t2);">เริ่มนับงบวันที่</span>
+        <div style="display:flex;align-items:center;gap:5px;">
+          <input id="budgetStartDay" type="number" min="1" max="31" class="food-inp"
+            style="width:52px;padding:6px 8px;font-size:12px;text-align:center;" value="1" onchange="saveNotifSettings()">
+          <span style="font-size:11px;color:var(--t3);">ของเดือน</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section: AI -->
+    <div class="settings-sec">
+      <div class="settings-sec-hd">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6M9 12h6M9 15h4"/></svg>
+        <span>Claude AI</span>
+      </div>
+      <input id="apiKeyInp" type="password" class="food-inp" placeholder="sk-ant-api03-..."
+        style="width:100%;margin-bottom:4px;" onchange="saveApiKey()">
+      <div style="font-size:10px;color:var(--t3);">ใช้สำหรับ AI ประเมินอาหาร</div>
+    </div>
+
+    <!-- Section: Data -->
+    <div class="settings-sec">
+      <div class="settings-sec-hd">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+        <span>ข้อมูล</span>
+      </div>
+      <button class="m-btn" id="uploadCloudBtn" style="width:100%;margin-bottom:6px;background:var(--blue);color:#fff;font-size:12px;" onclick="forceUploadToCloud()">
+        อัปโหลดขึ้น Cloud
+      </button>
+      <button class="m-btn m-ghost" style="width:100%;font-size:12px;" onclick="exportAllData()">
+        Export ข้อมูลทั้งหมด (.json)
+      </button>
+      <div id="uploadCloudStatus"></div>
+    </div>
+
+    <!-- Section: Roadmap -->
+    <div class="settings-sec">
+      <div class="settings-sec-hd">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+        <span>Athletic Roadmap</span>
+      </div>
+      <div id="roadmapContent"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- SICK LOG -->
+<div class="modal-bg" id="sickModal">
+  <div class="modal" style="max-width:300px;text-align:left;">
+    <div class="m-label" style="margin-bottom:14px;">บันทึกการป่วย</div>
+    <div style="margin-bottom:12px;">
+      <div style="font-size:10px;color:var(--t3);margin-bottom:5px;">ป่วยเป็นอะไร?</div>
+      <input id="sickName" class="food-inp" placeholder="เช่น ไข้หวัด · ปวดหัว · ท้องเสีย" style="width:100%;">
+    </div>
+    <div style="margin-bottom:16px;">
+      <div style="font-size:10px;color:var(--t3);margin-bottom:7px;">รู้สึกแย่ระดับไหน?</div>
+      <div style="display:flex;gap:5px;">
+        <button class="sev-btn" onclick="selectSev(1)"><span class="sev-num">1</span><span>เล็กน้อย</span></button>
+        <button class="sev-btn on" onclick="selectSev(2)"><span class="sev-num">2</span><span>พอทนได้</span></button>
+        <button class="sev-btn" onclick="selectSev(3)"><span class="sev-num">3</span><span>ค่อนข้างแย่</span></button>
+        <button class="sev-btn" onclick="selectSev(4)"><span class="sev-num">4</span><span>แย่มาก</span></button>
+        <button class="sev-btn" onclick="selectSev(5)"><span class="sev-num">5</span><span>ทรมาน</span></button>
+      </div>
+      <input type="hidden" id="sickSev" value="2">
+    </div>
+    <div class="m-btns">
+      <button class="m-btn m-ghost" onclick="closeSickModal()">ยกเลิก</button>
+      <button class="m-btn m-primary" onclick="startSick()">บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<!-- RECEIPT -->
+<div class="modal-bg" id="receiptModal">
+  <div class="modal" style="max-width:340px;">
+    <div class="m-label">ถ่ายใบเสร็จ / สลิป — AI อ่านให้</div>
+    <div class="photo-preview">
+      <video id="receiptVideo" playsinline autoplay muted></video>
+      <canvas id="receiptCanvas" style="display:none;width:100%;height:100%;object-fit:cover;border-radius:10px;"></canvas>
+    </div>
+    <div id="receiptResult" class="photo-result-txt"></div>
+    <div class="m-btns">
+      <button class="m-btn m-ghost" onclick="closeReceiptModal()">ปิด</button>
+      <button class="m-btn m-primary" id="receiptSnapBtn" onclick="snapReceipt()">ถ่าย</button>
+    </div>
+  </div>
+</div>
+
+<!-- RECURRING -->
+<div class="modal-bg" id="recurringModal">
+  <div class="modal" style="max-width:340px;text-align:left;">
+    <div class="m-label" style="margin-bottom:14px;">รายการประจำ</div>
+    <div id="recurringList" style="max-height:180px;overflow-y:auto;margin-bottom:12px;"></div>
+    <div style="padding-top:10px;border-top:1px solid var(--bd);display:flex;flex-direction:column;gap:6px;">
+      <div style="font-size:10px;color:var(--t3);">เพิ่มรายการประจำ</div>
+      <div style="display:flex;gap:6px;">
+        <input id="rec_desc" class="food-inp" placeholder="ชื่อรายการ" style="flex:1;">
+        <input id="rec_amount" class="food-inp" type="number" placeholder="฿" style="width:70px;">
+      </div>
+      <div style="display:flex;gap:6px;">
+        <select id="rec_period" class="food-inp" style="flex:1;">
+          <option value="monthly">ทุกเดือน</option>
+          <option value="weekly">ทุกสัปดาห์</option>
+          <option value="daily">ทุกวัน</option>
+        </select>
+        <input id="rec_day" class="food-inp" type="number" placeholder="วันที่" min="1" max="31" style="width:70px;">
+      </div>
+      <button class="m-btn m-primary" onclick="addRecurring()">+ เพิ่ม</button>
+    </div>
+    <button class="m-btn m-ghost" style="width:100%;margin-top:8px;" onclick="closeRecurringModal()">ปิด</button>
+  </div>
+</div>
+
+<!-- MED MANAGE -->
+<div class="modal-bg" id="medModal">
+  <div class="modal" style="max-width:320px;text-align:left;">
+    <div class="m-label" style="margin-bottom:14px;">จัดการยา & อาหารเสริม</div>
+    <div id="medManageList" style="margin-bottom:12px;max-height:220px;overflow-y:auto;"></div>
+    <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:14px;padding-top:10px;border-top:1px solid var(--bd);">
+      <div style="font-size:10px;color:var(--t3);">เพิ่มรายการใหม่</div>
+      <div style="display:flex;gap:6px;">
+        <input id="med_ico_inp" class="food-inp" style="width:46px;text-align:center;font-size:16px;padding:8px 4px;" placeholder="💊" maxlength="2">
+        <input id="med_name_inp" class="food-inp" placeholder="ชื่อยา / อาหารเสริม" style="flex:1;">
+        <input id="med_time_inp" class="food-inp" type="time" style="width:90px;font-family:var(--mono);">
+      </div>
+      <button class="m-btn m-primary" onclick="addMed()">+ เพิ่ม</button>
+    </div>
+    <button class="m-btn m-ghost" style="width:100%;" onclick="closeMedModal()">ปิด</button>
+  </div>
+</div>
+
+<!-- BUDGET -->
+<div class="modal-bg" id="budgetModal">
+  <div class="modal" style="max-width:320px;text-align:left;">
+    <div class="m-label" style="margin-bottom:14px;">ตั้งงบประมาณต่อเดือน</div>
+    <div id="budgetForm" style="max-height:200px;overflow-y:auto;margin-bottom:10px;"></div>
+    <div style="display:flex;gap:6px;padding-top:8px;border-top:1px solid var(--bd);margin-bottom:10px;">
+      <input id="budNewCat" class="food-inp" placeholder="หมวดใหม่ เช่น ออม" style="flex:1;">
+      <input id="budNewCap" class="food-inp" type="number" placeholder="งบ ฿" style="width:80px;">
+      <button class="add-btn" onclick="addBudgetCat()">+</button>
+    </div>
+    <div class="m-btns">
+      <button class="m-btn m-ghost" onclick="closeBudgetModal()">บันทึก & ปิด</button>
+    </div>
+  </div>
+</div>
+
+<!-- GOAL FORM -->
+<div class="modal-bg" id="goalFormModal">
+  <div class="modal" style="max-width:320px;text-align:left;">
+    <div class="m-label" style="margin-bottom:14px;">เพิ่มเป้าหมาย</div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;">
+      <div style="display:flex;gap:8px;">
+        <input id="gf_ico" class="food-inp" style="width:52px;text-align:center;font-size:18px;padding:8px 4px;" placeholder="🎯" maxlength="2">
+        <input id="gf_name" class="food-inp" placeholder="ชื่อเป้าหมาย" style="flex:1;">
+      </div>
+      <div style="display:flex;gap:8px;">
+        <div style="flex:1;"><div style="font-size:10px;color:var(--t3);margin-bottom:3px;">ปัจจุบัน</div><input id="gf_current" class="food-inp" type="number" style="width:100%;"></div>
+        <div style="flex:1;"><div style="font-size:10px;color:var(--t3);margin-bottom:3px;">เป้าหมาย</div><input id="gf_target" class="food-inp" type="number" style="width:100%;"></div>
+        <div style="width:60px;"><div style="font-size:10px;color:var(--t3);margin-bottom:3px;">หน่วย</div><input id="gf_unit" class="food-inp" placeholder="kg" style="width:100%;"></div>
+      </div>
+      <div><div style="font-size:10px;color:var(--t3);margin-bottom:3px;">ครบกำหนด (ไม่บังคับ)</div><input id="gf_deadline" class="food-inp" type="date" style="width:100%;"></div>
+    </div>
+    <div class="m-btns">
+      <button class="m-btn m-ghost" onclick="closeGoalForm()">ยกเลิก</button>
+      <button class="m-btn m-primary" onclick="submitGoalForm()">บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<!-- GOAL UPDATE -->
+<div class="modal-bg" id="goalUpdateModal">
+  <div class="modal" style="max-width:280px;text-align:left;">
+    <div class="m-label">อัปเดตความคืบหน้า</div>
+    <div id="goalUpdateName"></div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+      <input id="gu_val" class="food-inp" type="number" placeholder="ค่าปัจจุบัน" style="flex:1;">
+      <span id="gu_unit_lbl" style="font-size:13px;color:var(--t2);"></span>
+    </div>
+    <div class="m-btns">
+      <button class="m-btn m-ghost" onclick="closeGoalUpdate()">ยกเลิก</button>
+      <button class="m-btn m-primary" id="goalUpdateBtn">บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<!-- EXERCISE LOG -->
+<div class="modal-bg" id="exerciseModal">
+  <div class="modal" style="max-width:340px;text-align:left;">
+    <div class="m-label" style="margin-bottom:14px;">บันทึกออกกำลังกาย</div>
+    <input type="file" id="fitFileInput" accept=".fit,.tcx" style="display:none" onchange="importFitFile(event)">
+    <button class="m-btn m-ghost" style="width:100%;margin-bottom:12px;font-size:12px;"
+      onclick="document.getElementById('fitFileInput').click()">
+      นำเข้าจากไฟล์ .fit / .tcx
+    </button>
+    <div class="ex-type-row">
+      <button class="ex-type-btn on" onclick="selectExType('gym',this)">🏋️ ยิม</button>
+      <button class="ex-type-btn" onclick="selectExType('basketball',this)">🏀 บาส</button>
+      <button class="ex-type-btn" onclick="selectExType('cardio',this)">🏃 คาร์ดิโอ</button>
+      <button class="ex-type-btn" onclick="selectExType('other',this)">⚡ อื่นๆ</button>
+    </div>
+    <div>
+      <div style="font-size:10px;color:var(--t3);margin-bottom:5px;">ชื่อ / รายละเอียด</div>
+      <input id="exNotes" class="food-inp" placeholder="เช่น Push Day, วิ่ง 5km" style="width:100%;margin-bottom:8px;">
+    </div>
+    <div>
+      <div style="font-size:10px;color:var(--t3);margin-bottom:5px;">ระยะเวลา (นาที)</div>
+      <input id="exDuration" class="food-inp" type="number" inputmode="numeric" placeholder="60"
+        style="width:100%;" oninput="updateExCalPreview()">
+    </div>
+    <div class="ex-cal-preview" id="exCalPreview" style="margin-top:8px;"></div>
+    <div class="m-btns">
+      <button class="m-btn m-ghost" onclick="closeExerciseModal()">ยกเลิก</button>
+      <button class="m-btn m-primary" onclick="submitExercise()">บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<!-- MY FOODS -->
+<!-- FOOD ROULETTE -->
+<div class="modal-bg" id="rouletteModal">
+  <div class="modal" style="max-width:360px;text-align:left;">
+    <div class="m-label">🎲 สุ่มวัตถุดิบ Meal Prep วันนี้</div>
+    <div class="m-task" style="margin-bottom:10px;">สุ่มโปรตีน/คาร์บ/ไขมัน 1 อย่างต่อประเภท แล้วคำนวณปริมาณให้ตรงเป้า — กด 🎲 ที่ประเภทไหนก็สุ่มใหม่เฉพาะอย่างนั้นได้</div>
+    <div class="roulette-dish" id="rrDish"></div>
+    <div id="rouletteRows" class="roulette-rows"></div>
+    <div class="roulette-summary">
+      <div class="roulette-sum-cal" id="rrSumCal">— kcal</div>
+      <div class="roulette-sum-macro" id="rrSumMacro">—</div>
+    </div>
+    <div class="roulette-tip" id="rrTip"></div>
+    <div class="m-btns">
+      <button class="m-btn m-ghost" onclick="closeRouletteModal()">ยกเลิก</button>
+      <button class="m-btn m-ghost" onclick="spinFoodRoulette()">🎲 สุ่มใหม่</button>
+    </div>
+    <button class="m-btn m-primary" style="width:100%;margin-top:8px;" onclick="confirmRoulette()">ยืนยัน เพิ่มเข้า Log ✓</button>
+  </div>
+</div>
+
+<div class="modal-bg" id="myFoodsModal">
+  <div class="modal" style="max-width:340px;text-align:left;">
+    <div class="m-label" style="margin-bottom:14px;">อาหารของฉัน</div>
+    <div id="myFoodsList" style="max-height:200px;overflow-y:auto;margin-bottom:10px;"></div>
+    <div style="border-top:1px solid var(--bd);padding-top:10px;">
+      <div style="font-size:10px;color:var(--t3);margin-bottom:8px;">เพิ่มอาหารใหม่</div>
+      <input id="mf_name" class="food-inp" placeholder="ชื่ออาหาร" style="width:100%;margin-bottom:6px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:5px;margin-bottom:6px;">
+        <input id="mf_cal" class="food-inp" type="number" inputmode="numeric" placeholder="kcal" style="text-align:center;padding:8px 4px;">
+        <input id="mf_p" class="food-inp" type="number" inputmode="numeric" placeholder="P g" style="text-align:center;padding:8px 4px;">
+        <input id="mf_c" class="food-inp" type="number" inputmode="numeric" placeholder="C g" style="text-align:center;padding:8px 4px;">
+        <input id="mf_f" class="food-inp" type="number" inputmode="numeric" placeholder="F g" style="text-align:center;padding:8px 4px;">
+      </div>
+      <div style="display:flex;gap:6px;margin-bottom:10px;">
+        <input id="mf_unit" class="food-inp" placeholder="หน่วย เช่น จาน" style="flex:1;">
+        <button class="add-btn" onclick="addCustomFood()">+</button>
+      </div>
+    </div>
+    <button class="m-btn m-ghost" style="width:100%;" onclick="closeMyFoodsModal()">ปิด</button>
+  </div>
+</div>
+
+<!-- MY MEALS -->
+<div class="modal-bg" id="myMealsModal">
+  <div class="modal" style="max-width:340px;text-align:left;">
+    <div class="m-label" style="margin-bottom:14px;">มื้ออาหารของฉัน</div>
+    <div id="myMealsList" style="max-height:160px;overflow-y:auto;margin-bottom:10px;"></div>
+    <div style="border-top:1px solid var(--bd);padding-top:10px;">
+      <div style="font-size:10px;color:var(--t3);margin-bottom:6px;">สร้างมื้อใหม่</div>
+      <input id="meal_name" class="food-inp" placeholder="ชื่อมื้อ เช่น มื้อเช้าคีโต" style="width:100%;margin-bottom:6px;">
+      <div style="font-size:10px;color:var(--t3);margin-bottom:5px;">เลือกอาหารในมื้อ</div>
+      <div id="mealIngredients" style="margin-bottom:6px;max-height:100px;overflow-y:auto;"></div>
+      <div class="food-search-wrap" style="margin-bottom:6px;">
+        <input id="meal_food_inp" class="food-inp" placeholder="ค้นหาอาหาร..." oninput="onMealFoodInput(this.value)" autocomplete="off">
+        <div class="food-suggest" id="mealFoodSuggest"></div>
+      </div>
+      <button class="m-btn m-primary" style="width:100%;margin-top:4px;" onclick="saveCustomMeal()">บันทึกมื้อ</button>
+    </div>
+    <button class="m-btn m-ghost" style="width:100%;margin-top:6px;" onclick="closeMyMealsModal()">ปิด</button>
+  </div>
+</div>
+
+<!-- MY RECIPES -->
+<div class="modal-bg" id="myRecipesModal">
+  <div class="modal" style="max-width:340px;text-align:left;">
+    <div class="m-label" style="margin-bottom:14px;">สูตรอาหารของฉัน</div>
+    <div id="myRecipesList" style="max-height:160px;overflow-y:auto;margin-bottom:10px;"></div>
+    <div style="border-top:1px solid var(--bd);padding-top:10px;">
+      <input id="recipe_name" class="food-inp" placeholder="ชื่อสูตร เช่น สลัดคีโต" style="width:100%;margin-bottom:6px;">
+      <div style="display:flex;gap:6px;margin-bottom:6px;">
+        <input id="recipe_servings" class="food-inp" type="number" inputmode="numeric" placeholder="จำนวนที่ได้" style="width:80px;">
+        <span style="align-self:center;font-size:11px;color:var(--t3);">serving</span>
+      </div>
+      <div style="font-size:10px;color:var(--t3);margin-bottom:5px;">ส่วนผสม</div>
+      <div id="recipeIngredients" style="max-height:100px;overflow-y:auto;margin-bottom:6px;"></div>
+      <div style="margin-bottom:6px;">
+        <input id="ri_name" class="food-inp" placeholder="ชื่อส่วนผสม" style="width:100%;padding:7px 8px;font-size:12px;margin-bottom:5px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:4px;">
+          <input id="ri_cal" class="food-inp" type="number" inputmode="numeric" placeholder="cal" style="padding:7px 4px;font-size:11px;text-align:center;">
+          <input id="ri_p" class="food-inp" type="number" inputmode="numeric" placeholder="P" style="padding:7px 4px;font-size:11px;text-align:center;">
+          <input id="ri_c" class="food-inp" type="number" inputmode="numeric" placeholder="C" style="padding:7px 4px;font-size:11px;text-align:center;">
+          <input id="ri_f" class="food-inp" type="number" inputmode="numeric" placeholder="F" style="padding:7px 4px;font-size:11px;text-align:center;">
+        </div>
+      </div>
+      <button class="sec-btn" style="width:100%;margin-bottom:6px;" onclick="addRecipeIngredient()">+ ส่วนผสม</button>
+      <button class="m-btn m-primary" style="width:100%;" onclick="saveCustomRecipe()">บันทึกสูตร</button>
+    </div>
+    <button class="m-btn m-ghost" style="width:100%;margin-top:6px;" onclick="closeMyRecipesModal()">ปิด</button>
+  </div>
+</div>
+
+<!-- IF SETTINGS -->
+<div class="modal-bg" id="ifModal">
+  <div class="modal" style="max-width:300px;text-align:left;">
+    <div class="m-label" style="margin-bottom:14px;">Intermittent Fasting</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <span style="font-size:13px;font-weight:600;color:var(--t1);">เปิดใช้งาน IF</span>
+      <label class="toggle"><input type="checkbox" id="ifEnabled" onchange="saveIfSettings()"><span class="tg-slider"></span></label>
+    </div>
+    <div style="margin-bottom:12px;">
+      <div style="font-size:10px;color:var(--t3);margin-bottom:8px;">หน้าต่างการกินอาหาร</div>
+      <div class="if-settings-row">
+        <span style="font-size:12px;color:var(--t2);">เริ่มกินได้:</span>
+        <input id="ifStart" class="if-time-inp" type="time" value="12:00" onchange="saveIfSettings()">
+      </div>
+      <div class="if-settings-row">
+        <span style="font-size:12px;color:var(--t2);">หยุดกิน:</span>
+        <input id="ifEnd" class="if-time-inp" type="time" value="20:00" onchange="saveIfSettings()">
+      </div>
+    </div>
+    <div style="font-size:10px;color:var(--t3);margin-bottom:14px;line-height:1.6;">ตัวอย่าง: 16:8 IF = เริ่มกิน 12:00 หยุดกิน 20:00</div>
+    <button class="m-btn m-primary" style="width:100%;" onclick="closeIfSettings()">ตกลง</button>
+  </div>
+</div>
+
+<!-- Scripts -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/quagga@0.12.1/dist/quagga.min.js"></script>
 <script src="js/firebase.js"></script>
 <script src="app.js"></script>
 </body>
