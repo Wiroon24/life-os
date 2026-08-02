@@ -625,12 +625,12 @@ function logWeightQuick(){
   const v=parseFloat(document.getElementById('wqInp')?.value);
   if(!v||v<30||v>200) return;
   const prevWeight=weightLog.length?[...weightLog].sort((a,b)=>new Date(b.date)-new Date(a.date))[0].weight:null;
-  const dateStr=new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
-  weightLog=weightLog.filter(w=>w.date!==dateStr);
-  weightLog.push({date:dateStr,weight:v});
+  // Use the same TODAY key as logWeight() (toDateString) — a mismatched date format here used to create a
+  // duplicate same-day entry instead of updating it, and wiped out any fat/water/bone/etc already entered today.
+  const ex=weightLog.findIndex(x=>x.date===TODAY);
+  if(ex>=0) weightLog[ex].weight=v; else weightLog.push({date:TODAY,weight:v});
   weightLog.sort((a,b)=>new Date(a.date)-new Date(b.date));
-  localStorage.setItem('los_weight',JSON.stringify(weightLog));
-  fbSaveHealth(_healthPayload());
+  saveWeightLog();
   renderHealth();
   const lbl=document.getElementById('qlWeightLbl');
   if(lbl) lbl.textContent=v.toFixed(1)+'kg';
