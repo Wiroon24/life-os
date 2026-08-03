@@ -2401,6 +2401,21 @@ function getGoalPaceInfo(g,current,refDate){
   return{status:`ช้ากว่าแผน ${Math.abs(diff).toFixed(1)}${g.unit}`,color:'var(--amber)'};
 }
 
+// Icon per coin-log entry, inferred from its key prefix (icon itself isn't persisted, only used for the toast)
+function _coinLogIcon(key){
+  if(!key) return '🪙';
+  if(key.startsWith('task_')) return '✅';
+  if(key==='daily70') return '🎯';
+  if(key==='exercise') return '🏃';
+  if(key==='food') return '🍽️';
+  if(key==='water') return '💧';
+  if(key==='mood') return '😊';
+  if(key==='sleep') return '🌙';
+  if(key.startsWith('weight')) return '⚖️';
+  if(key==='streak7'||key==='streak30') return '🔥';
+  return '🪙';
+}
+
 function renderTravelFundCard(){
   const el=document.getElementById('travelFundCard');
   if(!el) return;
@@ -2409,16 +2424,29 @@ function renderTravelFundCard(){
   const recent=[...coinLog].reverse().slice(0,5);
   el.innerHTML=`<div class="travel-card">
     <div class="travel-hero">
+      <div class="travel-hero-ico">🏝️</div>
       <div class="travel-hero-val">฿${totalBaht.toLocaleString('th')}</div>
-      <div class="travel-hero-lbl">สะสมทั้งหมด · 🪙 ${coinBalance.toLocaleString('th')} coin</div>
+      <div class="travel-hero-lbl">สะสมทั้งหมด</div>
+      <div class="travel-coin-pill">🪙 ${coinBalance.toLocaleString('th')} coin</div>
     </div>
-    <div class="travel-pending-row">
-      <span>รอโอน: <b>฿${pending}</b></span>
-      ${pendingBaht>0?`<button class="m-btn m-primary" style="padding:6px 14px;font-size:12px;" onclick="confirmCoinTransfer()">ยืนยันโอนแล้ว</button>`:''}
-    </div>
-    ${recent.length?`<div class="travel-log">
-      ${recent.map(c=>`<div class="travel-log-row"><span>${c.label}</span><span style="color:var(--lime);">+${c.amount}</span></div>`).join('')}
-    </div>`:'<div style="font-size:11px;color:var(--t3);text-align:center;padding:8px 0;">ทำ routine/บันทึกอะไรก็ได้ในแอปเพื่อเริ่มสะสม coin</div>'}
+    ${pendingBaht>0?`<div class="travel-pending-card">
+      <div class="travel-pending-top">
+        <span class="travel-pending-ico">✈️</span>
+        <div>
+          <div class="travel-pending-lbl">รอโอนเข้าบัญชีท่องเที่ยว</div>
+          <div class="travel-pending-val">฿${pending}</div>
+        </div>
+      </div>
+      <button class="travel-confirm-btn" onclick="confirmCoinTransfer()">ยืนยันโอนแล้ว ✓</button>
+    </div>`:`<div class="travel-pending-empty">${coinBalance>0?'โอนล่าสุดแล้ว ✓ ทำต่อเพื่อสะสมรอบใหม่':'ทำ routine/บันทึกอะไรก็ได้ในแอปเพื่อเริ่มสะสม coin'}</div>`}
+    ${recent.length?`<div class="travel-log-title">กิจกรรมล่าสุด</div>
+    <div class="travel-log">
+      ${recent.map(c=>`<div class="travel-log-row">
+        <span class="travel-log-ico">${_coinLogIcon(c.key)}</span>
+        <span class="travel-log-lbl">${c.label}</span>
+        <span class="travel-log-amt">+${c.amount}</span>
+      </div>`).join('')}
+    </div>`:''}
   </div>`;
 }
 
