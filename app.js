@@ -427,7 +427,6 @@ let budgetCaps={};
 let illnessLog=[];
 let recurringTx=[];
 let catMemory={};
-let phaseData={face:{phase:'treatment',startDate:null},back:{phase:'treatment',startDate:null}};
 let moneyBudgetStartDay=1;
 let receiptStream=null;
 let sleepLog={};
@@ -486,7 +485,6 @@ function saveTaskState(){
   fbSaveTasks(done);
   const pct=calcProgress();
   saveHist({task:pct});
-  renderHabitDots();
 }
 
 function saveFoodState(){
@@ -520,43 +518,6 @@ function logWaterQuick(){
   if(el) el.textContent=ml>=1000?(ml/1000).toFixed(1)+'L':ml+'ml';
   showToast('💧','น้ำ +250ml',`รวม ${ml>=1000?(ml/1000).toFixed(1)+'L':ml+'ml'} วันนี้`);
   if(!hasEarnedToday('water')) earnCoins(500,'water','ดื่มน้ำวันนี้','💧');
-}
-
-// ── Weekly Habit Dots ──
-function renderHabitDots(){
-  const el=document.getElementById('habitStrip');
-  if(!el) return;
-  const hist=JSON.parse(localStorage.getItem('los_hist')||'{}');
-  const days7=[];
-  for(let i=6;i>=0;i--){const d=new Date();d.setDate(d.getDate()-i);days7.push(d);}
-  const DAY_SHORT=['อา','จ','อ','พ','พฤ','ศ','ส'];
-  const hasMeds=medList.length>0;
-
-  el.innerHTML=`<div class="habit-grid">
-    <div class="habit-labels">
-      <span class="habit-lbl-item">Routine</span>
-      <span class="habit-lbl-item">ออกกำลัง</span>
-      <span class="habit-lbl-item">นอน</span>
-      ${hasMeds?'<span class="habit-lbl-item">ยา</span>':''}
-    </div>
-    ${days7.map(d=>{
-      const ds=d.toDateString();
-      const isToday=ds===TODAY;
-      const task=hist[ds]?.task||0;
-      const slObj=sleepLog[ds];
-      const slHrs=slObj?calcSleepHours(slObj.bedtime,slObj.wakeTime):0;
-      const exMin=exerciseLog.filter(e=>e.date===ds).reduce((s,e)=>s+(e.duration||0),0);
-      const medDone=hasMeds?((medTaken[ds]||[]).filter(id=>medList.some(m=>m.id===id)).length>=medList.length):false;
-      const dayNum=d.getDay();
-      return `<div class="habit-col${isToday?' habit-today':''}">
-        <span class="habit-day-lbl">${DAY_SHORT[dayNum]}</span>
-        <div class="habit-dot ${task>=70?'hd-done':task>0?'hd-partial':'hd-empty'}" title="Routine ${task}%"></div>
-        <div class="habit-dot ${exMin>=30?'hd-done':exMin>0?'hd-partial':'hd-empty'}" title="ออกกำลัง ${exMin}m"></div>
-        <div class="habit-dot ${slHrs>=7?'hd-done':slHrs>0?'hd-partial':'hd-empty'}" title="นอน ${slHrs.toFixed(1)}h"></div>
-        ${hasMeds?`<div class="habit-dot ${medDone?'hd-done':'hd-empty'}" title="ยา"></div>`:''}
-      </div>`;
-    }).join('')}
-  </div>`;
 }
 
 // ── Sleep Quick Modal ──
@@ -595,49 +556,12 @@ function logSleepQuick(){
   sleepLog[TODAY]={bedtime:bed,wakeTime:wake,quality:sqQuality};
   saveSleepLog();
   renderHealth();
-  renderHabitDots();
   const h=calcSleepHours(bed,wake);
   const lbl=document.getElementById('qlSleepLbl');
   if(lbl) lbl.textContent=h.toFixed(1)+'h';
   closeSleepQuickModal();
   showToast('🌙','บันทึกการนอนแล้ว',`${h.toFixed(1)} ชม. · คุณภาพ ${sqQuality}/5`);
   if(!hasEarnedToday('sleep')) earnCoins(1000,'sleep','บันทึกการนอนวันนี้','🌙');
-}
-
-// ── Weight Quick Modal ──
-function openWeightQuickModal(){
-  const latest=weightLog.length?[...weightLog].sort((a,b)=>new Date(b.date)-new Date(a.date))[0].weight:null;
-  const inp=document.getElementById('wqInp');
-  if(inp) inp.value=latest||'';
-  document.getElementById('weightQuickModal').classList.add('on');
-  setTimeout(()=>inp?.select(),100);
-}
-function closeWeightQuickModal(){
-  document.getElementById('weightQuickModal').classList.remove('on');
-}
-function adjustWQ(delta){
-  const inp=document.getElementById('wqInp');
-  if(!inp) return;
-  const cur=parseFloat(inp.value)||0;
-  inp.value=(Math.round((cur+delta)*10)/10).toFixed(1);
-}
-function logWeightQuick(){
-  const v=parseFloat(document.getElementById('wqInp')?.value);
-  if(!v||v<30||v>200) return;
-  const prevWeight=weightLog.length?[...weightLog].sort((a,b)=>new Date(b.date)-new Date(a.date))[0].weight:null;
-  // Use the same TODAY key as logWeight() (toDateString) — a mismatched date format here used to create a
-  // duplicate same-day entry instead of updating it, and wiped out any fat/water/bone/etc already entered today.
-  const ex=weightLog.findIndex(x=>x.date===TODAY);
-  if(ex>=0) weightLog[ex].weight=v; else weightLog.push({date:TODAY,weight:v});
-  weightLog.sort((a,b)=>new Date(a.date)-new Date(b.date));
-  saveWeightLog();
-  renderHealth();
-  const lbl=document.getElementById('qlWeightLbl');
-  if(lbl) lbl.textContent=v.toFixed(1)+'kg';
-  closeWeightQuickModal();
-  showToast('⚖️','บันทึกน้ำหนักแล้ว',`${v.toFixed(1)} kg`);
-  checkWeightMilestoneCelebration(prevWeight,v);
-  tryEarnWeeklyWeightCoin();
 }
 
 // ── Mood Quick Modal ──
@@ -717,13 +641,9 @@ function init(){
   loadNotifSettings();
   initIFTimer();
   checkWeightReminder(now);
-  renderHabitDots();
   // Update quick labels if already logged today
   const _slToday=sleepLog[TODAY];
   if(_slToday){const _sh=calcSleepHours(_slToday.bedtime,_slToday.wakeTime);const _slLbl=document.getElementById('qlSleepLbl');if(_slLbl)_slLbl.textContent=_sh.toFixed(1)+'h';}
-  const _todayStr=new Date().toLocaleDateString('en-CA');
-  const _wtToday=weightLog.find(w=>w.date===_todayStr);
-  if(_wtToday){const _wLbl=document.getElementById('qlWeightLbl');if(_wLbl)_wLbl.textContent=_wtToday.weight.toFixed(1)+'kg';}
   const _moodToday=moodLog[TODAY];
   if(_moodToday){const _mLbl=document.getElementById('qlMoodLbl');if(_mLbl)_mLbl.textContent=_MQ_LBL[_moodToday]||'อารมณ์';}
 
@@ -842,6 +762,7 @@ function buildTimeline(day){
   });
 
   loadState();
+  _syncFinasterideTask();
   updateProgress();
 }
 
@@ -903,7 +824,6 @@ function _autoLogExerciseFromBlock(el){
   exerciseLog.push({id:'ex'+Date.now(),date:TODAY,type,name:name.trim(),duration:defaultMin,caloriesBurned:cal,note:'(จาก Routine อัตโนมัติ)',fromRoutine:true});
   localStorage.setItem('los_exercise',JSON.stringify(exerciseLog));
   renderExerciseLog();
-  renderHabitDots();
   showToast('🏃','บันทึกออกกำลังกายแล้ว',`${name.trim()} ~${defaultMin} นาที · ${cal} kcal`);
   if(!hasEarnedToday('exercise')) earnCoins(1500,'exercise','ออกกำลังกายวันนี้','🏃');
 }
@@ -932,7 +852,34 @@ function toggleST(blockId,subId){
     else{block.classList.remove('done');}
     if(allDone&&!wasDone&&!hasEarnedToday('task_'+blockId)) earnCoins(150,'task_'+blockId,'ทำ '+(block.querySelector('.tblock-name')?.textContent||'งาน')+' เสร็จ');
   }
+  // Finasteride ('sw2') is also tracked in the Health tab's medTaken — keep both in sync so ticking
+  // one doesn't leave the other unchecked.
+  if(subId==='sw2'&&medList.some(m=>m.id==='med1')){
+    const taken=document.getElementById('sw2')?.classList.contains('done');
+    if(!medTaken[TODAY]) medTaken[TODAY]=[];
+    const idx=medTaken[TODAY].indexOf('med1');
+    if(taken&&idx<0) medTaken[TODAY].push('med1');
+    if(!taken&&idx>=0) medTaken[TODAY].splice(idx,1);
+    saveMedTaken();
+  }
   saveTaskState(); updateProgress();
+}
+
+// Mirrors Health tab's medTaken['med1'] (Finasteride) onto the Today tab's 'sw2' routine task —
+// used both after toggling from the Health tab and to sync on initial render.
+function _syncFinasterideTask(){
+  const el=document.getElementById('sw2');
+  if(!el||!medList.some(m=>m.id==='med1')) return;
+  const taken=(medTaken[TODAY]||[]).includes('med1');
+  el.classList.toggle('done',taken);
+  const block=document.getElementById('b_wake');
+  if(!block) return;
+  const wasDone=block.classList.contains('done');
+  const allDone=[...block.querySelectorAll('.subtask')].every(s=>s.classList.contains('done'));
+  if(allDone){block.classList.add('done','collapsed'); block.classList.remove('skipped');}
+  else{block.classList.remove('done');}
+  if(allDone&&!wasDone&&!hasEarnedToday('task_b_wake')) earnCoins(150,'task_b_wake','ทำ '+(block.querySelector('.tblock-name')?.textContent||'งาน')+' เสร็จ');
+  saveTaskState();
 }
 
 function calcProgress(){
@@ -2680,6 +2627,7 @@ function buildReport(){
   if(_s('trendSleep')) _s('trendSleep').innerHTML=trendHtml(avgSleepVal,prevAvgSleep,true);
 
   buildGoals(hist,dates);
+  renderRoadmap();
   renderTravelFundCard();
   buildWeeklyReview(hist,dates);
   buildMoneySummary(dates);
@@ -2882,9 +2830,6 @@ function openSettings(){
   loadNotifSettings();
   const k=getApiKey();
   if(k) document.getElementById('apiKeyInp').value=k;
-  const hInp=document.getElementById('heightInp');
-  if(hInp&&userHeight) hInp.value=userHeight;
-  renderRoadmap();
   document.getElementById('settingsPanel').classList.add('on');
 }
 function closeSettings(){document.getElementById('settingsPanel').classList.remove('on');}
@@ -2928,7 +2873,7 @@ const FIXED_NOTIFS=[
   {key:'night',   label:'Skincare คืน 19:45'},
   {key:'sleep',   label:'นอน 22:30'},
   {key:'finance', label:'บันทึกการเงิน 20:30'},
-  {key:'weight',  label:'ชั่งน้ำหนัก (จ. ที่ยังไม่ชั่ง)'},
+  {key:'weight',  label:'ชั่งน้ำหนัก (อา. ถ้ายังไม่ชั่งมา 7 วัน)'},
 ];
 function _getHiddenNotifs(){
   try{return new Set(JSON.parse(localStorage.getItem('los_hidden_notifs')||'[]'));}catch{return new Set();}
@@ -3061,7 +3006,7 @@ function checkLowWaterReminder(now){
 function checkWeightReminder(now){
   const s=JSON.parse(localStorage.getItem('los_notif')||'{}');
   if(!s.weight) return;
-  if(now.getDay()!==1) return;  // only Monday
+  if(now.getDay()!==0) return;  // only Sunday
   const key='weight_reminder_'+now.toDateString();
   if(notifSentToday.has(key)) return;
   const lastWt=weightLog.length?[...weightLog].sort((a,b)=>new Date(b.date)-new Date(a.date))[0]:null;
@@ -3108,11 +3053,6 @@ function loadHealth(){
     const cm=localStorage.getItem('los_cat_memory');if(cm) catMemory=JSON.parse(cm);
     const rt=localStorage.getItem('los_recurring');if(rt) recurringTx=JSON.parse(rt);
     const bd=localStorage.getItem('los_budget_start');if(bd) moneyBudgetStartDay=parseInt(bd)||1;
-    // Phase tracker
-    const ph=localStorage.getItem('los_phase');if(ph) phaseData=JSON.parse(ph);
-    const today=new Date().toISOString().slice(0,10);
-    if(!phaseData.face.startDate) phaseData.face.startDate=today;
-    if(!phaseData.back.startDate) phaseData.back.startDate=today;
     // New state
     const sl=localStorage.getItem('los_sleep');if(sl) sleepLog=JSON.parse(sl);
     const el=localStorage.getItem('los_exercise');if(el) exerciseLog=JSON.parse(el);
@@ -3203,7 +3143,7 @@ function saveUserHeight(){
   localStorage.setItem('los_height',v);
   renderHealth();
 }
-function saveMoodLog(){localStorage.setItem('los_mood',JSON.stringify(moodLog));fbSaveHealth(_healthPayload());renderHabitDots();}
+function saveMoodLog(){localStorage.setItem('los_mood',JSON.stringify(moodLog));fbSaveHealth(_healthPayload());}
 function saveMeds(){localStorage.setItem('los_meds',JSON.stringify(medList));fbSaveHealth(_healthPayload());}
 function saveMedTaken(){localStorage.setItem('los_med_taken',JSON.stringify(medTaken));fbSaveHealth(_healthPayload());}
 function saveBudget(){localStorage.setItem('los_budget',JSON.stringify(budgetCaps));fbSaveMoney(_moneyPayload());}
@@ -3269,7 +3209,7 @@ function toggleMedTaken(id){
   else medTaken[TODAY].push(id);
   saveMedTaken();
   renderHealth();
-  renderHabitDots();
+  if(id==='med1') _syncFinasterideTask();
 }
 
 function openMedModal(){
@@ -3403,55 +3343,12 @@ function renderIllnessCard(){
     </div>`:''}`;
 }
 
-// ── Phase Tracker ──
-function savePhase(){localStorage.setItem('los_phase',JSON.stringify(phaseData));}
-
-function togglePhase(area){
-  phaseData[area].phase=phaseData[area].phase==='treatment'?'maintenance':'treatment';
-  phaseData[area].startDate=new Date().toISOString().slice(0,10);
-  savePhase();
-  renderPhaseTracker();
-}
-
-function renderPhaseTracker(){
-  const el=document.getElementById('phaseTrackerContent');
-  if(!el) return;
-  const areas=[
-    {key:'face',label:'หน้า',color:'var(--orange)'},
-    {key:'back',label:'หลัง',color:'var(--teal)'}
-  ];
-  el.innerHTML=areas.map(a=>{
-    const d=phaseData[a.key];
-    const start=d.startDate?new Date(d.startDate):new Date();
-    const daysIn=Math.max(0,Math.floor((Date.now()-start.getTime())/(1000*60*60*24)));
-    const weeksIn=Math.floor(daysIn/7);
-    const isTreatment=d.phase==='treatment';
-    const pct=isTreatment?Math.min(100,Math.round((weeksIn/6)*100)):100;
-    const weekLabel=isTreatment?`Week ${weeksIn+1} of 6`:`Maintenance · Week ${weeksIn+1}`;
-    const startStr=start.toLocaleDateString('th',{day:'numeric',month:'short',year:'2-digit'});
-    const checkpoint=isTreatment&&weeksIn>=6
-      ?`<div class="phase-checkpoint">ครบ 6 สัปดาห์ — ประเมินผลแล้วเปลี่ยน Phase</div>`:'';
-    return `<div class="phase-row">
-      <div class="phase-area">${a.label}</div>
-      <div class="phase-content">
-        <div class="phase-top">
-          <span class="phase-badge ${isTreatment?'phase-treatment':'phase-maintenance'}">${isTreatment?'Treatment':'Maintenance'}</span>
-          <span class="phase-week">${weekLabel}</span>
-          <button class="phase-toggle" onclick="togglePhase('${a.key}')">เปลี่ยน</button>
-        </div>
-        ${isTreatment?`<div class="phase-bar-wrap"><div class="phase-bar-fill" style="width:${pct}%;background:${a.color};"></div></div>`:''}
-        <div class="phase-since">เริ่ม ${startStr} · ${daysIn} วัน</div>
-        ${checkpoint}
-      </div>
-    </div>`;
-  }).join('');
-}
-
 // ── Render Health page ──
 function renderHealth(){
+  const hInp=document.getElementById('heightInp');
+  if(hInp&&userHeight) hInp.value=userHeight;
   renderHealthScore();
   renderHealthTiles();
-  renderPhaseTracker();
   renderMoodCard();
   renderWeightCard();
   renderSleepCard();
@@ -4252,7 +4149,6 @@ function submitExercise(){
   closeExerciseModal();
   renderExerciseLog();
   renderFood();
-  renderHabitDots();
   showToast('🏃','บันทึกแล้ว!',`${typeLabels[currentExType]} ${dur} นาที — เผา ${cal} kcal`);
   if(!hasEarnedToday('exercise')) earnCoins(1500,'exercise','ออกกำลังกายวันนี้','🏃');
 }
@@ -4285,7 +4181,6 @@ function deleteExercise(id){
   localStorage.setItem('los_exercise',JSON.stringify(exerciseLog));
   renderExerciseLog();
   renderFood();
-  renderHabitDots();
 }
 
 // ── My Foods ─────────────────────────────
