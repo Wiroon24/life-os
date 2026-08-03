@@ -3517,8 +3517,8 @@ function buildBodyCompGrid(entry,weight){
   cells.push(bmi?cell('BMI',bmi.toFixed(1),'',bcStatus('bmi',bmi)):cell('BMI','—','',{label:'ตั้งส่วนสูงในตั้งค่า',color:'var(--t3)'}));
   if(entry.fat) cells.push(cell('ไขมัน',entry.fat,'%',bcStatus('fat',entry.fat)));
   if(entry.water) cells.push(cell('น้ำ',entry.water,'%',bcStatus('water',entry.water)));
-  if(entry.muscle){const p=entry.muscle/weight*100;cells.push(cell('กล้ามเนื้อ',p.toFixed(1),'%',bcStatus('musclePct',p)));}
-  if(entry.bone){const p=entry.bone/weight*100;cells.push(cell('กระดูก',p.toFixed(1),'%',bcStatus('bonePct',p)));}
+  if(entry.muscle) cells.push(cell('กล้ามเนื้อ',entry.muscle,'%',bcStatus('musclePct',entry.muscle)));
+  if(entry.bone) cells.push(cell('กระดูก',entry.bone,'%',bcStatus('bonePct',entry.bone)));
   if(entry.visceral) cells.push(cell('ไขมันช่องท้อง',entry.visceral,'',bcStatus('visceral',entry.visceral)));
   if(entry.bmr) cells.push(cell('BMR',entry.bmr,'kcal',bcStatus('bmr',entry.bmr)));
   if(cells.length<=1) return '';
@@ -3537,7 +3537,7 @@ function renderWeightCard(){
     const fEl=document.getElementById('wtFatInp');
     const mEl=document.getElementById('wtMuscleInp');
     if(fEl&&todayEntry.fat) fEl.placeholder=todayEntry.fat+'%';
-    if(mEl&&todayEntry.muscle) mEl.placeholder=todayEntry.muscle+'kg';
+    if(mEl&&todayEntry.muscle) mEl.placeholder=todayEntry.muscle+'%';
   } else { wtEl.textContent='—'; }
 
   if(!weightLog.length){statsEl.innerHTML='<div style="font-size:11px;color:var(--t3);">บันทึกน้ำหนักวันนี้ก่อนเลย</div>';return;}
@@ -3806,7 +3806,7 @@ function renderHealthTiles(){
   const latestFat=sortedW.find(x=>x.fat);
   _el('tileFatVal',latestFat?latestFat.fat+'%':'—');
   const latestMus=sortedW.find(x=>x.muscle);
-  _el('tileFatSub',latestMus?'กล้าม '+latestMus.muscle+'kg':'% body fat');
+  _el('tileFatSub',latestMus?'กล้าม '+latestMus.muscle+'%':'% body fat');
 
   // Exercise
   const todayEx=exerciseLog.filter(e=>e.date===TODAY);
