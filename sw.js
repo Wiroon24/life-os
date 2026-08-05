@@ -1,5 +1,5 @@
 // Bump this version every deploy — forces SW reinstall on all devices
-const CACHE = 'iam-v32';
+const CACHE = 'iam-v33';
 
 const OFFLINE_ASSETS = [
   '/',
