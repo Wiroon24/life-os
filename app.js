@@ -6,8 +6,8 @@ const TODAY = new Date().toDateString();
 // ============ SCHEDULE ============
 function makeSched(day) {
   const isWork = [1,2,3,4,5].includes(day);
-  const isBas = [1,3].includes(day);
-  const gymMap = {2:'Upper Heavy 💪',5:'Lower Heavy 🦵',6:'Upper Light 💪',0:'Lower Light 🦵'};
+  const isBas = [1].includes(day);
+  const gymMap = {2:'Upper Heavy 💪',3:'Lower Light 🦵',5:'Lower Heavy 🦵',6:'Upper Light 💪'};
 
   // Evening shower: Keto(จ1/พ3/ศ5=scalp only, Sellon เลิกใช้แล้ว) | ธรรมดา(อ2/พฤ4/ส6/อา0)
   const isKetoDay  = [1,3,5].includes(day);
@@ -83,21 +83,37 @@ function makeSched(day) {
   ]});
 
   if (isBas) {
-    s.push({id:'b_ex',t:'08:00',ico:'🏀',name:'บาสเกตบอล + Upper Light',subs:[
+    s.push({id:'b_ex',t:'08:00',ico:'🏀',name:'บาสเกตบอล',subs:[
+      // RAMP warm-up: Raise → Activate/Mobilize → Potentiate (ลด injury risk ก่อนกิจกรรม explosive)
       {id:'se1',n:'Warm-up: Ankle Circle 15 ครั้ง/ข้าง',sec:0},
-      {id:'se2',n:'Warm-up: High Knee Jog',sec:60},
-      {id:'se3',n:'Warm-up: Hip Circle + Squat Jump เบาๆ',sec:30},
-      {id:'se4',n:'เล่นบาส',sec:0},
-      {id:'se5',n:'Upper Light: DB Shoulder Press 2×12 เบา — พัก',sec:60},
-      {id:'se6',n:'Upper Light: DB Row 2×12 เบา — พัก',sec:60},
-      {id:'se7',n:'Stretch: Quad ซ้าย',sec:30},{id:'se8',n:'Stretch: Quad ขวา',sec:30},
-      {id:'se9',n:'Stretch: Calf ซ้าย',sec:40},{id:'se10',n:'Stretch: Calf ขวา',sec:40},
-      {id:'se11',n:'Stretch: Hip Flexor ซ้าย',sec:30},{id:'se12',n:'Stretch: Hip Flexor ขวา',sec:30},
-      {id:'se13',n:'Stretch: Pigeon Pose ซ้าย',sec:45},{id:'se14',n:'Stretch: Pigeon Pose ขวา',sec:45},
+      {id:'se2',n:'Warm-up: High Knee Jog (Raise)',sec:60},
+      {id:'se3',n:'Warm-up: Lateral Shuffle (Raise/agility)',sec:30},
+      {id:'se4',n:'Warm-up: Leg Swing หน้า-หลัง+ข้าง 10 ครั้ง/ข้าง (Mobilize)',sec:0},
+      {id:'se5',n:'Power Primer: Pogo Hop 15 ครั้ง — กระตุ้นความไวข้อเท้า',sec:0},
+      {id:'se6',n:'Power Primer: Lateral Bound เบาๆ 2×5/ข้าง (Potentiate)',sec:30},
+      {id:'se7',n:'เล่นบาส',sec:0},
+      // Cool-down เน้นข้อเท้า/สะโพก — จุดบาดเจ็บบ่อยที่สุดของบาส
+      {id:'se8',n:'Cool-down: Single-leg Balance 30 วิ/ข้าง — proprioception ข้อเท้า',sec:30},
+      {id:'se9',n:'Cool-down: Resistance Band Ankle Eversion 2×15/ข้าง — ป้องกันข้อเท้าพลิก',sec:0},
+      {id:'se10',n:'Stretch: Quad ซ้าย',sec:30},{id:'se11',n:'Stretch: Quad ขวา',sec:30},
+      {id:'se12',n:'Stretch: Calf กำแพง ซ้าย',sec:40},{id:'se13',n:'Stretch: Calf กำแพง ขวา',sec:40},
+      {id:'se14',n:'Stretch: Hip Flexor ซ้าย',sec:30},{id:'se15',n:'Stretch: Hip Flexor ขวา',sec:30},
+      {id:'se16',n:'Stretch: Pigeon Pose ซ้าย',sec:45},{id:'se17',n:'Stretch: Pigeon Pose ขวา',sec:45},
+      {id:'se18',n:'Stretch: Hamstring',sec:40},
     ]});
   } else if (gymMap[day]) {
     const gymSubs = getGymSubs(day);
     s.push({id:'b_ex',t:[2,4].includes(day)?'07:45':'08:00',ico:'🏋️',name:gymMap[day],subs:gymSubs});
+  } else if (day===4) {
+    // พฤหัส = วันพักจากเวท/บาสเพียงวันเดียวที่ใส่ cardio ได้ — อาทิตย์ยังเป็น true rest ตามที่ตั้งใจไว้
+    // Cardio LISS เดินชัน: ไม่ทำให้ล้าเหมือน running, เสริม deficit โดยไม่ชน recovery
+    s.push({id:'b_ex',t:'08:00',ico:'🚶',name:'Cardio — เดินชัน 55 นาที',subs:[
+      {id:'gc1',n:'ตั้ง Treadmill: ชัน 10-12% ความเร็ว 5-5.5 กม./ชม.',sec:0},
+      {id:'gc2',n:'เดินต่อเนื่อง Zone 2 (พูดได้ หอบเล็กน้อย) 55 นาที',sec:3300},
+      {id:'gc3',n:'Cool-down: ลดชันเหลือ 0% เดินราบ 3 นาที',sec:180},
+      {id:'gc4',n:'Stretch: Calf กำแพง ซ้าย',sec:40},{id:'gc5',n:'Stretch: Calf กำแพง ขวา',sec:40},
+      {id:'gc6',n:'Stretch: Hip Flexor ซ้าย',sec:30},{id:'gc7',n:'Stretch: Hip Flexor ขวา',sec:30},
+    ]});
   }
 
   if (isWork) {
@@ -144,56 +160,81 @@ function makeSched(day) {
 
 function getGymSubs(day) {
   const maps = {
-    // อังคาร — Upper Heavy
+    // อังคาร — Upper Heavy (4-6 reps, พักยาว 90-120s — เน้นแรง/max strength)
     2:[
-      {id:'g1',n:'Warm-up: Arm Circle + Wall Slide × 10',sec:0},
-      {id:'g2',n:'DB Bench Press 4-5×5-6 หนัก — พัก',sec:120},
-      {id:'g3',n:'DB Shoulder Press 4-5×5-6 หนัก — พัก',sec:120},
-      {id:'g4',n:'DB Bent-over Row 4-5×5-6 หนัก — พัก',sec:120},
-      {id:'g5',n:'Face Pull 3×15 — พัก',sec:60},
-      {id:'g6',n:'Bicep Curl 2×10 — พัก',sec:60},
-      {id:'g7',n:'Stretch: Cross-body Shoulder ซ้าย',sec:30},{id:'g8',n:'Stretch: Cross-body Shoulder ขวา',sec:30},
-      {id:'g9',n:"Stretch: Chest Doorway + Child's Pose",sec:45},
+      {id:'g1',n:'Warm-up: Arm Circle + Shoulder Rotation 10 ครั้ง',sec:0},
+      {id:'g2',n:'Warm-up: Wall Slide × 10 (scapular mobility)',sec:0},
+      {id:'g3',n:'Warm-up: Cat-Cow × 10',sec:0},
+      {id:'g4',n:'DB Bench Press (บนม้า) 4×5-6 หนัก — พัก',sec:120},
+      {id:'g5',n:'Lat Pulldown (Cable) 4×5-6 หนัก — พัก',sec:120},
+      {id:'g6',n:'DB Shoulder Press 3×6 หนัก — พัก',sec:90},
+      {id:'g7',n:'Seated Cable Row 3×6 หนัก — พัก',sec:90},
+      {id:'g8',n:'Face Pull (Cable, rope) 3×12 — สุขภาพไหล่/ท่าทาง — พัก',sec:60},
+      {id:'g9',n:'Core: Pallof Press (Cable/ยางยืด) 2×10/ข้าง — anti-rotation ช่วย stability ตอนแข่งบาส — พัก',sec:45},
+      {id:'g_cd1',n:'Cardio: Treadmill เดินชัน 10-12% เร็ว 5-5.5 กม./ชม. 45 นาที',sec:2700},
+      {id:'g10',n:'Stretch: Chest Doorway',sec:30},
+      {id:'g11',n:'Stretch: Cross-body Shoulder ซ้าย',sec:30},{id:'g12',n:'Stretch: Cross-body Shoulder ขวา',sec:30},
+      {id:'g13',n:'Stretch: Lat กำแพง ซ้าย',sec:30},{id:'g14',n:'Stretch: Lat กำแพง ขวา',sec:30},
+      {id:'g15',n:"Stretch: Child's Pose",sec:45},
     ],
-    // ศุกร์ — Lower Heavy
-    5:[
-      {id:'g1',n:'Warm-up: Leg Swing + Hip Circle + BW Squat × 15',sec:0},
-      {id:'g2',n:'Goblet Squat (DB) 4-5×5-6 หนัก — พัก',sec:120},
-      {id:'g3',n:'Romanian Deadlift (DB) 4-5×5-6 หนัก — พัก',sec:120},
-      {id:'g4',n:'Leg Press 3×8 — พัก',sec:90},
-      {id:'g5',n:'Leg Curl (เครื่อง) 2×12 — พัก',sec:60},
-      {id:'g6',n:'Standing Calf Raise 3×15 — พัก',sec:45},
-      {id:'g7',n:'Stretch: Quad + Hamstring',sec:40},
-      {id:'g8',n:'Stretch: Hip Flexor Lunge ซ้าย',sec:30},{id:'g9',n:'Stretch: Hip Flexor Lunge ขวา',sec:30},
-      {id:'g10',n:'Stretch: Pigeon Pose ซ้าย',sec:45},{id:'g11',n:'Stretch: Pigeon Pose ขวา',sec:45},
-      // Ankle strengthening — optional, สำคัญสำหรับบาส ป้องกันข้อเท้าพลิก
-      {id:'ga1',n:'[Optional] Single-leg Balance 30 วิ/ข้าง — ฝึก proprioception ข้อเท้า',sec:30,opt:true},
-      {id:'ga2',n:'[Optional] Resistance Band Eversion 3×20/ข้าง — เสริม peroneal ป้องกันข้อเท้าพลิก',sec:0,opt:true},
-      {id:'ga3',n:'[Optional] Resistance Band Inversion 3×20/ข้าง — เสริม tibialis posterior',sec:0,opt:true},
-      {id:'ga4',n:'[Optional] Toe Walk 20 ก้าว + Heel Walk 20 ก้าว — เสริมกล้ามข้อเท้ารอบด้าน',sec:0,opt:true},
-      {id:'ga5',n:'[Optional] Star Excursion Balance ซ้าย (6 ทิศทาง) — ฝึกการทรงตัว',sec:30,opt:true},
-      {id:'ga6',n:'[Optional] Star Excursion Balance ขวา (6 ทิศทาง)',sec:30,opt:true},
-      {id:'ga7',n:'[Optional] Stretch: Ankle Dorsiflexion ซ้าย (เข่ากดหน้า)',sec:30,opt:true},
-      {id:'ga8',n:'[Optional] Stretch: Ankle Dorsiflexion ขวา',sec:30,opt:true},
-    ],
-    // เสาร์ — Upper Light (ท่าเดิมกับอังคาร reps สูงขึ้น น้ำหนักเบาลง)
+    // เสาร์ — Upper Light (10-15 reps, พักสั้น 45-60s — เน้น hypertrophy/technique/ความถี่)
     6:[
       {id:'g1',n:'Warm-up: Arm Circle + Wall Slide × 10',sec:0},
-      {id:'g2',n:'DB Bench Press 3×10-12 เบา — พัก',sec:60},
-      {id:'g3',n:'DB Shoulder Press 3×10-12 เบา — พัก',sec:60},
-      {id:'g4',n:'DB Bent-over Row 3×10-12 เบา — พัก',sec:60},
-      {id:'g5',n:'Lateral Raise 3×15 — พัก',sec:45},
-      {id:'g6',n:'Tricep Pushdown 2×12 — พัก',sec:45},
-      {id:'g7',n:'Stretch: Chest + Cross-body + Tricep',sec:60},
+      {id:'g2',n:'Warm-up: Cat-Cow × 10',sec:0},
+      {id:'g3',n:'DB Bench Press 3×12 เบา — พัก',sec:60},
+      {id:'g4',n:'Lat Pulldown (Cable) 3×12 เบา — พัก',sec:60},
+      {id:'g5',n:'DB Shoulder Press 3×12 เบา — พัก',sec:60},
+      {id:'g6',n:'Seated Cable Row 3×12 เบา — พัก',sec:60},
+      {id:'g7',n:'Lateral Raise 3×15 — พัก',sec:45},
+      {id:'g8',n:'Tricep Pushdown (Cable) 2×15 — พัก',sec:45},
+      {id:'g9',n:'DB Bicep Curl 2×15 — พัก',sec:45},
+      {id:'g10',n:'Face Pull (Cable) 3×15 — พัก',sec:45},
+      {id:'g11',n:'Plank (Core) 3×30-45 วิ — พัก',sec:30},
+      // Cardio finisher — ขาไม่ได้โดนงานหนักวันนี้ (Upper) จึงเดินชันเต็มโดสได้โดยไม่ชน recovery ขา
+      {id:'g_cd1',n:'Cardio Finisher: Treadmill เดินชัน 10-12% เร็ว 5-5.5 กม./ชม. 45 นาที',sec:2700},
+      {id:'g12',n:'Stretch: Chest + Cross-body Shoulder',sec:60},
+      {id:'g13',n:'Stretch: Lat กำแพง',sec:30},
     ],
-    // อาทิตย์ — Lower Light (ท่าเดิมกับศุกร์ reps สูงขึ้น น้ำหนักเบาลง)
-    0:[
+    // พุธ — Lower Light + Basketball Power/Balance (10-15 reps เบา + plyo primer เบาๆ)
+    3:[
+      {id:'g1',n:'Warm-up: Leg Swing หน้า-หลัง+ข้าง 15 ครั้ง/ข้าง',sec:0},
+      {id:'g2',n:'Warm-up: Hip Circle 10 ครั้ง/ข้าง',sec:0},
+      {id:'g3',n:'Warm-up: Ankle Dorsiflexion Rock 10 ครั้ง/ข้าง',sec:0},
+      {id:'g4',n:'Warm-up: BW Squat × 15',sec:0},
+      {id:'g5',n:'Power: Squat Jump เบาๆ soft landing 3×5 — พัก',sec:90},
+      {id:'g6',n:'Power: Lateral Bound (Skater Jump) 3×5/ข้าง — พัก',sec:90},
+      {id:'g7',n:'Goblet Squat (DB) 3×12 เบา — พัก',sec:60},
+      {id:'g8',n:'Leg Extension (เครื่อง) 3×15 — พัก',sec:45},
+      {id:'g9',n:'Leg Curl (เครื่อง) 3×15 — พัก',sec:45},
+      {id:'g10',n:'Single-leg RDL (DB) 3×10/ข้าง — ทรงตัว + หลังขา — พัก',sec:60},
+      {id:'g11',n:'Standing Calf Raise เดี่ยวข้างเดียว 3×15/ข้าง — พัก',sec:45},
+      {id:'g12',n:'Single-leg Balance ตาเปิด→ปิด 30 วิ/ข้าง',sec:30},
+      {id:'g13',n:'Resistance Band Ankle Inversion 2×15/ข้าง',sec:0},
+      {id:'g14',n:'Decline Sit-up (ม้า) 3×15 — พัก',sec:45},
+      {id:'g_cd1',n:'Cardio: Treadmill เดินชัน 8-10% เร็ว 5 กม./ชม. 30 นาที (เบากว่าปกติ — ขาผ่าน Power+Strength มาแล้ว)',sec:1800},
+      {id:'g15',n:'Stretch: Quad + Hamstring',sec:40},
+      {id:'g16',n:'Stretch: Hip Flexor Lunge ซ้าย',sec:30},{id:'g17',n:'Stretch: Hip Flexor Lunge ขวา',sec:30},
+      {id:'g18',n:'Stretch: Pigeon Pose ซ้าย',sec:45},{id:'g19',n:'Stretch: Pigeon Pose ขวา',sec:45},
+    ],
+    // ศุกร์ — Lower Heavy + Basketball Power (4-6 reps หนัก, plyo/unilateral เต็มรูปแบบ)
+    5:[
       {id:'g1',n:'Warm-up: Leg Swing + Hip Circle + BW Squat × 15',sec:0},
-      {id:'g2',n:'Goblet Squat (DB) 3×10-12 เบา — พัก',sec:60},
-      {id:'g3',n:'Romanian Deadlift (DB) 3×10-12 เบา — พัก',sec:60},
-      {id:'g4',n:'Leg Curl (เครื่อง) 2×15 — พัก',sec:45},
-      {id:'g5',n:'Standing Calf Raise 3×15 — พัก',sec:45},
-      {id:'g6',n:'Stretch: Quad + Hamstring + Hip Flexor',sec:60},
+      {id:'g2',n:'Warm-up: Ankle Dorsiflexion Rock 10 ครั้ง/ข้าง',sec:0},
+      {id:'g3',n:'Power: Broad Jump (กระโดดไกลแนวราบ) 3×3 — พัก',sec:90},
+      {id:'g4',n:'Power: Box Step-up เร็ว (ใช้ม้า) 2×5/ข้าง เบา — พัก',sec:60},
+      {id:'g5',n:'Goblet Squat (DB) 4×5-6 หนัก — พัก',sec:150},
+      {id:'g6',n:'Romanian Deadlift (DB) 4×5-6 หนัก — พัก',sec:150},
+      {id:'g7',n:'Bulgarian Split Squat (วางเท้าหลังบนม้า) 3×6/ข้าง หนัก — พัก',sec:90},
+      {id:'g8',n:'Leg Curl (เครื่อง) 3×8 หนัก — พัก',sec:90},
+      {id:'g9',n:'Standing Calf Raise 4×10 หนัก — พัก',sec:60},
+      {id:'g10',n:'Back Extension (ม้า) 3×12 — ป้องกันหลังล่าง/เสริมพลังกระโดด — พัก',sec:60},
+      {id:'g11',n:'Resistance Band Eversion 2×15/ข้าง — ป้องกันข้อเท้าพลิก',sec:0},
+      {id:'g12',n:'Resistance Band Inversion 2×15/ข้าง',sec:0},
+      {id:'g_cd1',n:'Cardio: Treadmill เดินชัน 8-10% เร็ว 5 กม./ชม. 30 นาที (เบากว่าปกติ — ขาหนักมาแล้ว)',sec:1800},
+      {id:'g13',n:'Stretch: Quad + Hamstring',sec:40},
+      {id:'g14',n:'Stretch: Hip Flexor Lunge ซ้าย',sec:30},{id:'g15',n:'Stretch: Hip Flexor Lunge ขวา',sec:30},
+      {id:'g16',n:'Stretch: Pigeon Pose ซ้าย',sec:45},{id:'g17',n:'Stretch: Pigeon Pose ขวา',sec:45},
+      {id:'g18',n:'Stretch: Calf กำแพง ซ้าย',sec:40},{id:'g19',n:'Stretch: Calf กำแพง ขวา',sec:40},
     ],
   };
   return maps[day] || [];
@@ -622,10 +663,11 @@ function init(){
   renderCoinBadge();
   document.getElementById('nowTime').textContent=now.toLocaleTimeString('th',{hour:'2-digit',minute:'2-digit'});
 
-  const gymLabels={2:'Upper Heavy',5:'Lower Heavy',6:'Upper Light',0:'Lower Light'};
+  const gymLabels={2:'Upper Heavy',3:'Lower Light',5:'Lower Heavy',6:'Upper Light'};
   let b='';
-  if([1,3].includes(day)) b+=`<span class="badge b-bas">🏀 บาส</span>`;
+  if([1].includes(day)) b+=`<span class="badge b-bas">🏀 บาส</span>`;
   if(gymLabels[day]) b+=`<span class="badge b-gym">🏋️ ${gymLabels[day]}</span>`;
+  else if(day===4) b+=`<span class="badge b-gym">🚶 Cardio</span>`;
   document.getElementById('hdrBadges').innerHTML=b;
 
   loadFinance();
@@ -953,17 +995,32 @@ function getEffectiveBMR(){
   const h=userHeight||173;
   return Math.round(10*w+6.25*h-5*29+5);
 }
+// Latest measured body-fat % (จาก InBody/scan ล่าสุดที่มี .fat), ใช้ไล่ระดับ deficit
+function getLatestBodyFatPct(){
+  const withFat=[...weightLog].sort((a,b)=>new Date(b.date)-new Date(a.date)).find(x=>x.fat);
+  return withFat ? withFat.fat : null;
+}
 function getCalTarget(day){
   const bmr=getEffectiveBMR();
-  const activity=day===4?1.2:1.375; // rest day vs exercise day
-  const deficit=650; // ~0.6kg/wk safe recomp rate toward the fat-loss goal
+  // อาทิตย์ (0) = true rest วันเดียวของสัปดาห์ (ไม่มีเวท/บาส/cardio) → sedentary
+  // ทุกวันอื่นมีเวท/บาส/เดินชันอย่างน้อยหนึ่งอย่างแล้ว → exercise-day multiplier
+  const activity=day===0?1.2:1.375;
+  // Deficit ไล่ระดับตาม body fat วัดจริงล่าสุด (เป้า 15%) — ไกลเป้ายิ่งลดไวได้อย่างปลอดภัย
+  // ใกล้เป้ายิ่งต้องช้าแบบ muscle-sparing เพราะเทรนหนัก 4 วัน/สัปดาห์ + บาสอีก 1 วัน (ต้องการพลังงานฟื้นตัว)
+  const fatPct=getLatestBodyFatPct();
+  let deficit;
+  if(fatPct==null) deficit=550;       // ไม่มีข้อมูล body fat — ใช้ค่ากลางที่ปลอดภัยไว้ก่อน
+  else if(fatPct>=25) deficit=750;    // ไขมันสำรองเยอะ (~0.68kg/wk) — ลดไวได้โดยแทบไม่กระทบกล้ามเนื้อ
+  else if(fatPct>=20) deficit=500;    // ปานกลาง (~0.45kg/wk)
+  else if(fatPct>=15) deficit=300;    // ใกล้เป้า 15% แล้ว ต้อง muscle-sparing (~0.27kg/wk)
+  else deficit=0;                     // ถึง/ต่ำกว่าเป้าแล้ว — คุม maintenance ไม่ลดต่อ
   return Math.max(1200,Math.round(bmr*activity-deficit));
 }
 
 function updateCalTarget(day){
   const t=getCalTarget(day);
   const calTargetEl=document.getElementById('calTarget');
-  if(calTargetEl) calTargetEl.textContent=(day===4?'💤 พัก':'🏋️ ออกกำลังกาย')+' · '+t.toLocaleString()+' kcal';
+  if(calTargetEl) calTargetEl.textContent=(day===0?'💤 พัก':'🏋️ ออกกำลังกาย')+' · '+t.toLocaleString()+' kcal';
   const calTargetNumEl=document.getElementById('calTargetNum');
   if(calTargetNumEl) calTargetNumEl.textContent=t.toLocaleString();
   window._calt=t;
@@ -1425,14 +1482,14 @@ function renderFood(){
   // Sync visible macro bars (new design)
   const _set=(id,val)=>{const e=document.getElementById(id);if(e)e.textContent=val;};
   const _setStyle=(id,prop,val)=>{const e=document.getElementById(id);if(e)e.style[prop]=val;};
-  _set('protInVis',tP); _set('protRightVis',tP>=protTarget?'ครบ ✓':`ขาด ${protTarget-tP}g`);
+  _set('protInVis',tP); _set('protTargetLblVis',protTarget); _set('protRightVis',tP>=protTarget?'ครบ ✓':`ขาด ${protTarget-tP}g`);
   _setStyle('protBarFillVis','width',Math.min(100,Math.round(tP/protTarget*100))+'%');
   _setStyle('protRightVis','color',tP>=protTarget?'var(--green)':'var(--amber)');
-  _set('carbInVis',tCa); _set('carbTargetLblVis',carbTarget+'g');
+  _set('carbInVis',tCa); _set('carbTargetLblVis',carbTarget);
   _set('carbRightVis',carbOver>0?`เกิน ${carbOver}g`:`ขาด ${Math.abs(carbOver)}g`);
   _setStyle('carbBarFillVis','width',Math.min(100,Math.round(tCa/carbTarget*100))+'%');
   _setStyle('carbBarFillVis','background',carbOver>0?'var(--amber)':'var(--teal)');
-  _set('fatInVis',tF); _set('fatTargetLblVis',fatTarget+'g');
+  _set('fatInVis',tF); _set('fatTargetLblVis',fatTarget);
   _set('fatRightVis',fatOver>0?`เกิน ${fatOver}g`:`ขาด ${Math.abs(fatOver)}g`);
   _setStyle('fatBarFillVis','width',Math.min(100,Math.round(tF/fatTarget*100))+'%');
   _setStyle('fatBarFillVis','background',fatOver>0?'var(--red)':'var(--green)');
