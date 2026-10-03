@@ -15,6 +15,7 @@ import { ensurePermission } from '../../store/notify';
 import { fromMin } from '../../domain/time';
 import type { Signal } from '@preact/signals';
 import { Stepper } from '../sheets';
+import { isNative, captureStatus, openListenerSettings } from '../../native';
 
 type V = 'hub' | 'tpl' | 'conn' | 'notif' | 'trash' | 'ai';
 const T: Record<V, string> = { hub: 'โปรไฟล์และตั้งค่า', tpl: 'แม่แบบ', conn: 'การเชื่อมต่อ', notif: 'แจ้งเตือน', trash: 'ถังขยะ', ai: 'ตั้งค่า AI' };
@@ -85,20 +86,7 @@ export function Profile() {
 
       {v === 'ai' && <AISettings />}
 
-      {v === 'conn' && <>
-        <div class="card" style={{ borderRadius: 22, padding: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div class="row"><span class="medal" style={{ borderRadius: 14, background: 'var(--success-tint)', color: 'var(--workout-ink)' }}><Icon n="favorite" fill /></span><span class="col grow"><span class="t16">Health Connect</span><span class="muted" style={{ fontSize: 12.5, fontWeight: 600 }}>ใช้ได้ในแอป Android (กำลังทำ)</span></span></div>
-          <span class="small muted">เมื่อติดตั้งเป็นแอป Android แล้ว จะดึงการนอน ก้าวเดิน น้ำหนัก และหัวใจจาก Zepp/Amazfit ผ่าน Health Connect เอง ตอนนี้ใช้ปุ่ม “นอนแล้ว” และชั่งน้ำหนักในแอปแทน</span>
-        </div>
-        <span class="muted" style={{ fontSize: 13, fontWeight: 600, padding: '0 4px' }}>แอปธนาคาร · อ่านแจ้งเตือน</span>
-        <div class="card" style={{ padding: '2px 12px 2px 14px' }}>
-          {([['กสิกร', 'K', '#1C9C4A'], ['KTC', 'KTC', '#D92D20']] as const).map(([nm, ab, c], i) => (
-            <div class="row" style={{ minHeight: 64, boxShadow: i ? 'inset 0 1px 0 var(--surface-2)' : 'none' }}>
-              <span style={{ width: 40, height: 40, flex: 'none', borderRadius: 12, background: c, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700 }}>{ab}</span>
-              <span class="col grow"><span style={{ fontSize: 15.5, fontWeight: 600 }}>{nm}</span><span class="muted" style={{ fontSize: 12.5 }}>แอป Android: อ่านเอง · ตอนนี้: วางข้อความในหน้าเงิน</span></span>
-            </div>))}
-        </div>
-      </>}
+      {v === 'conn' && <ConnScreen />}
 
       {v === 'notif' && <>
         <button class="btn soft" onClick={async () => { await ensurePermission(); toast(typeof Notification !== 'undefined' && Notification.permission === 'granted' ? 'อนุญาตแจ้งเตือนแล้ว' : 'ยังไม่ได้รับอนุญาต เปิดในตั้งค่าเบราว์เซอร์'); }}><Icon n="notifications_active" size={20} />อนุญาตแจ้งเตือนบนเครื่องนี้</button>
@@ -131,6 +119,30 @@ export function Profile() {
       </>}
     </div>
   );
+}
+
+function ConnScreen() {
+  const st = captureStatus.value;
+  return <>
+    <div class="card" style={{ borderRadius: 22, padding: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div class="row"><span class="medal" style={{ borderRadius: 14, background: 'var(--success-tint)', color: 'var(--workout-ink)' }}><Icon n="favorite" fill /></span><span class="col grow"><span class="t16">Health Connect</span><span class="muted" style={{ fontSize: 12.5, fontWeight: 600 }}>ยังไม่เชื่อม · กำลังทำ</span></span></div>
+      <span class="small muted">จะดึงการนอน ก้าวเดิน น้ำหนัก และหัวใจจาก Zepp/Amazfit ผ่าน Health Connect ตอนนี้ใช้ปุ่ม “นอนแล้ว” และชั่งน้ำหนักในแอปแทน</span>
+    </div>
+    <span class="muted" style={{ fontSize: 13, fontWeight: 600, padding: '0 4px' }}>อ่านแจ้งเตือนธนาคาร</span>
+    {!isNative ? <div class="card" style={{ padding: 16 }}><span class="small muted">ใช้ได้เฉพาะแอป Android ที่ติดตั้งแล้ว ตอนนี้วางข้อความแจ้งเตือนในหน้าเงินแทน (เงิน → เพิ่ม → วางแจ้งเตือนธนาคาร)</span></div> : <>
+      <div class="card" style={{ borderRadius: 22, padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div class="row"><span class="medal" style={{ borderRadius: 14, background: st?.enabled ? 'var(--success-tint)' : 'var(--warning-tint)', color: st?.enabled ? 'var(--workout-ink)' : 'var(--warning-ink)' }}><Icon n={st?.enabled ? 'check_circle' : 'notifications_off'} fill /></span>
+          <span class="col grow"><span class="t16">{st?.enabled ? 'เปิดอ่านแจ้งเตือนอยู่' : 'ยังไม่ได้อนุญาต'}</span><span class="muted" style={{ fontSize: 12.5 }}>{st?.enabled ? 'รายการจากแอปที่เลือกจะเข้ากล่องรอยืนยัน' : 'ต้องเปิดสิทธิ์ “การเข้าถึงการแจ้งเตือน” ให้ Iam ครั้งเดียว'}</span></span></div>
+        {!st?.enabled && <button class="btn primary lg" onClick={() => openListenerSettings()}>เปิดการตั้งค่า</button>}
+      </div>
+      <div class="card" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <span class="t16">อ่านเฉพาะแอปเหล่านี้</span>
+        <div class="row" style={{ flexWrap: 'wrap', gap: 6 }}>{(st?.labels ?? []).map((l) => <span class="chip">{l}</span>)}</div>
+        <span class="cap muted">SMS: เฉพาะผู้ส่ง {(st?.senders ?? []).join(', ')} · แอปอื่น เช่น LINE อีเมล ถูกข้ามโดยไม่อ่านเนื้อหา · ข้อความที่มี OTP ถูกทิ้ง</span>
+        <span class="cap muted">การเลือกแอปเองกำลังทำ</span>
+      </div>
+    </>}
+  </>;
 }
 
 function AISettings() {

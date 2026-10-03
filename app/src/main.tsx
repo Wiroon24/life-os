@@ -7,11 +7,13 @@ import './domain/money';
 import { autoWake } from './domain/sleep';
 import { App } from './app';
 import { checkReminders } from './domain/reminders';
+import { initNative, isNative } from './native';
 
 autoWake();
-if ('serviceWorker' in navigator && import.meta.env.PROD) navigator.serviceWorker.register('/sw.js').catch(() => {});
+initNative().catch(() => {});
+if ('serviceWorker' in navigator && import.meta.env.PROD && !isNative) navigator.serviceWorker.register('/sw.js').catch(() => {});
 document.addEventListener('visibilitychange', () => { if (!document.hidden) autoWake();
-if ('serviceWorker' in navigator && import.meta.env.PROD) navigator.serviceWorker.register('/sw.js').catch(() => {}); });
+if ('serviceWorker' in navigator && import.meta.env.PROD && !isNative) navigator.serviceWorker.register('/sw.js').catch(() => {}); });
 setInterval(checkReminders, 30_000);
 setTimeout(checkReminders, 3000);
 render(<App />, document.getElementById('app')!);

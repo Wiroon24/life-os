@@ -162,8 +162,8 @@ export const isPayday = (today = new Date()) => today.getDate() === profile.valu
 export const FX_THB: Record<string, number> = { USD: 33, EUR: 36, GBP: 42, JPY: 0.22, SGD: 25, CNY: 4.6, HKD: 4.3, AUD: 22, KRW: 0.024, MYR: 7.5 };
 
 /** Parse a bank/card notification into a transaction draft. Foreign currency is converted at a rough rate and flagged. */
-export function parseNotification(text: string): Omit<Txn, 'id' | 'cat' | 'status'> | null {
-  const p = parseRaw(text); if (!p) return null;
+export function parseNotification(text: string, appLabel = ''): Omit<Txn, 'id' | 'cat' | 'status'> | null {
+  const p = parseRaw(text, appLabel); if (!p) return null;
   const foreign = p.cur !== 'THB';
   return { ts: Date.now(), amount: foreign ? Math.round(p.amount * (FX_THB[p.cur] ?? 1)) : p.amount, inc: p.inc, merchant: p.merchant, account: p.account, raw: text, source: 'notif', ...(foreign ? { fx: { cur: p.cur, amt: p.amount } } : {}) };
 }

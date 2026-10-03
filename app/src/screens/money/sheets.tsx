@@ -18,7 +18,7 @@ function AddTxn() {
   };
   const parse = () => {
     const lines = paste.split(/\n{2,}|\n(?=(?:ขอบคุณที่ใช้บัตร|บัตร\s|K PLUS|KTC|SCB|ใช้จ่าย|เงินเข้า))/).map((x) => x.trim()).filter(Boolean);
-    const ok = lines.map(parseNotification).filter(Boolean);
+    const ok = lines.map((l) => parseNotification(l)).filter(Boolean);
     if (!ok.length) return toast('อ่านไม่ออก ลองวางข้อความแจ้งเตือนเต็มๆ');
     const before = txns.value.length; ok.forEach((p) => addTxn(p!)); const n = txns.value.length - before; closeSheet(); toast(n === ok.length ? `เข้ากล่องรอยืนยัน ${n} รายการ` : `เข้ากล่องรอยืนยัน ${n} รายการ · ข้ามรายการซ้ำ ${ok.length - n}`);
   };
