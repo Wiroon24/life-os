@@ -6,16 +6,17 @@ export interface ParsedNotif {
 /** OTPs and verification texts must never become transactions (they often contain the amount too). */
 export const isOtp = (s: string) => /OTP|รหัสผ่านใช้ครั้งเดียว|ห้ามเปิดเผย|รหัสยืนยัน|verification code|one[- ]time/i.test(s);
 
-const BANKS: [RegExp, string][] = [[/ktc|เคทีซี/i, 'KTC'], [/k\s?plus|กสิกร|kbank|make\s*by/i, 'กสิกร'], [/scb|ไทยพาณิชย์/i, 'SCB'], [/ktb|กรุงไทย/i, 'กรุงไทย']];
+const BANKS: [RegExp, string][] = [[/ktc|เคทีซี/i, 'KTC'], [/k\s?plus|กสิกร|kbank|make\s*by/i, 'กสิกร'], [/scb|ไทยพาณิชย์/i, 'SCB'], [/ktb|กรุงไทย/i, 'กรุงไทย'], [/bangkok\s*bank|ธนาคารกรุงเทพ|bualuang/i, 'กรุงเทพ'], [/true\s?money|ทรูมันนี่/i, 'TrueMoney']];
 const CUR = '(THB|USD|EUR|JPY|SGD|GBP|CNY|HKD|AUD|KRW|MYR)';
 
-export function parseNotification(text: string): ParsedNotif | null {
+/** `appLabel` is the sending app (e.g. 'MAKE by KBank'); it identifies the bank when the text itself does not. */
+export function parseNotification(text: string, appLabel = ''): ParsedNotif | null {
   const s = text.replace(/\s+/g, ' ').trim();
   if (!s || isOtp(s)) return null;
   // "ยอด 1,180 THB" / "ยอด 21.40 USD" (KTC) first, then "฿359" / "359.00 บาท".
   const m = s.match(new RegExp(`ยอด\\s*([\\d,]+(?:\\.\\d{1,2})?)\\s*${CUR}?`, 'i'))
     ?? s.match(new RegExp(`${CUR}\\s?([\\d,]+(?:\\.\\d{1,2})?)`, 'i'))
-    ?? s.match(/(?:฿)\s?([\d,]+(?:\.\d{1,2})?)|([\d,]+(?:\.\d{1,2})?)\s?(?:บาท|บ\.)/);
+    ?? s.match(/฿\s?([\d,]+(?:\.\d{1,2})?)(?!\d)|(?<![\d/.,])([\d,]+(?:\.\d{1,2})?)\s?(?:บาท|บ\.|฿)/);
   if (!m) return null;
   let cur = 'THB', num: string | undefined;
   if (/^ยอด/i.test(m[0])) { num = m[1]; cur = (m[2] ?? 'THB').toUpperCase(); }
@@ -24,11 +25,11 @@ export function parseNotification(text: string): ParsedNotif | null {
   const amount = parseFloat((num ?? '').replace(/,/g, ''));
   if (!amount) return null;
   const inc = /เงินเข้า|รับโอน|ได้รับ|received|deposit|โอนเข้า|incoming/i.test(s);
-  const account = BANKS.find(([r]) => r.test(s))?.[1] ?? 'บัญชี';
+  const account = BANKS.find(([r]) => r.test(s))?.[1] ?? BANKS.find(([r]) => r.test(appLabel))?.[1] ?? (appLabel.trim() || 'บัญชี');
   const card = s.match(/X-?(\d{4})\b/i)?.[1];
   // "@SHOPEE *SHOPEE", "@ANTHROPIC +1415…" → stop at "*", "+", or a long digit run.
   const at = s.match(/@\s*([A-Za-z0-9ก-๙&.'\- ]+?)(?=\s*(?:[*+]|…|\d{7,})|$)/);
-  const th = s.match(/(?:ที่|at|ร้าน|to|ให้|ไปยัง|จาก|from)\s+([A-Za-z0-9ก-๙*&.'\- ]{2,40}?)(?=\s(?:วันที่|เวลา|ยอด|คงเหลือ|on|\d{1,2}[/:])|$|[.,])/i);
+  const th = s.match(/(?:ที่|at|ร้าน|to|ให้|ไปยัง|จาก|from)\s+([A-Za-z0-9ก-๙*&.'\- ]{2,40}?)(?=\s(?:วันที่|เวลา|ยอด|คงเหลือ|on|\d{1,2}[/:])|[…;]|$|[.,])/i);
   const merchant = (at?.[1] ?? th?.[1] ?? (inc ? 'เงินเข้า' : `รายการจาก ${account}`)).trim();
   return { amount, cur, inc, merchant, account, card, raw: text };
 }
