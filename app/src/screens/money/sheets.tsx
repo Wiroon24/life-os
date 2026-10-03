@@ -17,10 +17,10 @@ function AddTxn() {
     confirmTxns([t.id]); closeSheet(); showUndo(`${inc ? '+' : '−'}${a.toLocaleString()} ฿ · ${t.cat}`, () => (txns.value = txns.value.filter((x) => x.id !== t.id)));
   };
   const parse = () => {
-    const lines = paste.split(/\n{2,}|(?=\n?(?:K PLUS|KTC|SCB|กสิกร|ใช้จ่าย|เงินเข้า))/).map((x) => x.trim()).filter(Boolean);
+    const lines = paste.split(/\n{2,}|\n(?=(?:ขอบคุณที่ใช้บัตร|บัตร\s|K PLUS|KTC|SCB|ใช้จ่าย|เงินเข้า))/).map((x) => x.trim()).filter(Boolean);
     const ok = lines.map(parseNotification).filter(Boolean);
     if (!ok.length) return toast('อ่านไม่ออก ลองวางข้อความแจ้งเตือนเต็มๆ');
-    ok.forEach((p) => addTxn(p!)); closeSheet(); toast(`เข้ากล่องรอยืนยัน ${ok.length} รายการ`);
+    const before = txns.value.length; ok.forEach((p) => addTxn(p!)); const n = txns.value.length - before; closeSheet(); toast(n === ok.length ? `เข้ากล่องรอยืนยัน ${n} รายการ` : `เข้ากล่องรอยืนยัน ${n} รายการ · ข้ามรายการซ้ำ ${ok.length - n}`);
   };
   return (
     <div class="col" style={{ gap: 12 }}>

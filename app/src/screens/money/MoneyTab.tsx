@@ -30,8 +30,8 @@ function InboxRow({ t, onPick }: { t: Txn; onPick: () => void }) {
         onPointerCancel={() => { st.current = null; setDx(0); }}
         style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 12, minHeight: 72, padding: '10px 14px 10px 12px', background: '#fff', borderRadius: 18, transform: `translateX(${dx}px)`, transition: st.current ? 'none' : 'transform 220ms var(--ease-out)', touchAction: 'pan-y', userSelect: 'none', cursor: 'grab' }}>
         <span class="medal" style={{ width: 40, height: 40, background: c.soft, color: c.ink }}><Icon n={c.icon} fill size={22} /></span>
-        <span class="col grow"><span style={{ fontSize: 15.5, fontWeight: 600 }}>{t.merchant}</span><span class="muted" style={{ fontSize: 12.5 }}>{t.account} · <b style={{ fontWeight: 600, color: c.ink }}>{t.cat}</b></span></span>
-        <span class="num" style={{ fontSize: 17, fontWeight: 600, color: t.inc ? 'var(--workout-ink)' : 'var(--ink)' }}>{t.inc ? '+' : '−'}{fmt(t.amount)}</span>
+        <span class="col grow"><span style={{ fontSize: 15.5, fontWeight: 600 }}>{t.merchant}</span><span class="muted" style={{ fontSize: 12.5 }}>{t.account} · <b style={{ fontWeight: 600, color: c.ink }}>{t.cat}</b>{t.fx ? ` · ${t.fx.amt} ${t.fx.cur} (ประมาณ)` : ''}</span></span>
+        <span class="num" style={{ fontSize: 17, fontWeight: 600, color: t.inc ? 'var(--workout-ink)' : 'var(--ink)' }}>{t.fx ? '≈' : ''}{t.inc ? '+' : '−'}{fmt(t.amount)}</span>
       </div>
     </div>
   );
@@ -40,7 +40,11 @@ function InboxRow({ t, onPick }: { t: Txn; onPick: () => void }) {
 export function pickCategory(t: Txn) {
   openSheet({ title: 'เปลี่ยนหมวด', body: () => (
     <div class="col" style={{ gap: 14 }}>
-      <span class="small muted" style={{ marginTop: -10 }}>{t.merchant} · {fmt(t.amount)} ฿</span>
+      <div class="row" style={{ gap: 8, marginTop: -6 }}>
+        <span class="col grow"><span class="t16">{t.merchant}</span>{t.fx && <span class="cap muted">{t.fx.amt} {t.fx.cur} · ยอดบาทจริงดูจากใบแจ้งหนี้ แก้ได้</span>}</span>
+        <input class="field num" inputMode="decimal" defaultValue={String(t.amount)} style={{ width: 110, height: 44, textAlign: 'right' }} aria-label="จำนวนเงินบาท"
+          onChange={(e) => { const v = parseFloat((e.target as HTMLInputElement).value.replace(/,/g, '')); if (v > 0) txns.value = txns.value.map((x) => (x.id === t.id ? { ...x, amount: v, fx: undefined } : x)); }} />
+      </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8 }}>
         {live(categories.value).map((c) => { const cur = t.cat === c.name; return (
           <button class="press" style={{ minHeight: 72, borderRadius: 16, background: cur ? c.ink : c.soft, color: cur ? '#fff' : c.ink, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, fontSize: 14, fontWeight: 600 }}

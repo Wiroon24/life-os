@@ -4,10 +4,11 @@ import { live } from '../store/collection';
 import { profile } from './profile';
 import { addProvider, type Block } from './plan';
 import { dayKey } from './time';
+import { parseNotification as parseRaw, dupKey } from './notif';
 
 export interface Cat extends Item { name: string; budget: number; icon: string; soft: string; ink: string; bar: string; income?: boolean }
 export interface Bill extends Item { name: string; amount: number; dueDay: number; approx?: boolean; kind: 'fixed' | 'card' | 'sub'; fixed: boolean }
-export interface Txn { id: string; ts: number; amount: number; inc: boolean; merchant: string; cat: string; account: string; status: 'pending' | 'confirmed'; raw?: string; source?: 'notif' | 'slip' | 'manual' | 'text' }
+export interface Txn { id: string; ts: number; amount: number; inc: boolean; merchant: string; cat: string; account: string; status: 'pending' | 'confirmed'; raw?: string; source?: 'notif' | 'slip' | 'manual' | 'text'; fx?: { cur: string; amt: number } }
 export interface Debt extends Item { name: string; icon: string; balance: number; orig: number; payment: number; rate: number; rateAfter?: number; fixedUntil?: string; meta: string; inBills: boolean }
 
 const C = (name: string, budget: number, icon: string, soft: string, ink: string, bar: string, income = false) => ({ name, budget, icon, soft, ink, bar, income });
@@ -92,6 +93,7 @@ export function guessCat(merchant: string, inc: boolean) {
 }
 
 export function addTxn(t: Omit<Txn, 'id' | 'cat' | 'status'> & { cat?: string; status?: Txn['status'] }) {
+  if (t.source === 'notif' && isDuplicate(t)) return txns.value.find((x) => x.raw && parseRaw(x.raw) && t.raw && dupKey(parseRaw(t.raw)!) === dupKey(parseRaw(x.raw)!)) ?? txns.value[0];
   const tx: Txn = { id: uid(), status: 'pending', ...t, cat: t.cat ?? guessCat(t.merchant, t.inc) };
   txns.value = [tx, ...txns.value];
   return tx;
@@ -102,23 +104,6 @@ export function confirmTxns(ids: string[]) {
   catMemory.value = mem;
 }
 export const pending = () => txns.value.filter((t) => t.status === 'pending').sort((a, b) => b.ts - a.ts);
-
-/**
- * Parse a Thai bank / card notification or SMS. Handles common K PLUS, KTC, SCB, KTB shapes:
- * "ใช้จ่าย 359.00 บาท ที่ SHOPEE", "รายการโอน ... 80.00 บาท", "เงินเข้า 650.00 บ.", "Paid THB 112.00 at GRAB*FOOD".
- */
-export function parseNotification(text: string): Omit<Txn, 'id' | 'cat' | 'status'> | null {
-  const s = text.replace(/\s+/g, ' ').trim();
-  const amtM = s.match(/(?:THB|฿)\s?([\d,]+(?:\.\d{1,2})?)|([\d,]+(?:\.\d{1,2})?)\s?(?:บาท|บ\.|THB)/i);
-  if (!amtM) return null;
-  const amount = parseFloat((amtM[1] ?? amtM[2]).replace(/,/g, ''));
-  if (!amount) return null;
-  const inc = /เงินเข้า|รับโอน|ได้รับ|received|deposit|โอนเข้า|incoming/i.test(s);
-  const account = /ktc/i.test(s) ? 'KTC' : /k\s?plus|กสิกร|kbank|make/i.test(s) ? 'กสิกร' : /scb|ไทยพาณิชย์/i.test(s) ? 'SCB' : /ktb|กรุงไทย/i.test(s) ? 'กรุงไทย' : 'บัญชี';
-  const mer = s.match(/(?:ที่|at|ร้าน|to|ให้|ไปยัง|จาก|from)\s+([A-Za-z0-9ก-๙*&.'\- ]{2,40}?)(?=\s(?:วันที่|เวลา|ยอด|คงเหลือ|on|\d{1,2}[/:])|$|[.,])/i);
-  const merchant = (mer?.[1] ?? (inc ? 'เงินเข้า' : 'รายการจาก ' + account)).trim();
-  return { ts: Date.now(), amount, inc, merchant, account, raw: text, source: 'notif' };
-}
 
 /* ---------- Debt payoff simulation ---------- */
 const monthsBetween = (ym: string, from = new Date()) => { const [y, m] = ym.split('-').map(Number); return (y - from.getFullYear()) * 12 + (m - 1 - from.getMonth()); };
@@ -172,3 +157,20 @@ addProvider((date) => upcomingBills(date, 0).map((b): Block => ({
 export const nextPayday = (today = new Date()) => cycle(today).end;
 export const daysToPayday = (today = new Date()) => Math.round((nextPayday(today).getTime() - new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime()) / 864e5);
 export const isPayday = (today = new Date()) => today.getDate() === profile.value.payday;
+
+/** Rough THB per foreign unit, used only to estimate card spend abroad (the real THB amount comes on the statement). */
+export const FX_THB: Record<string, number> = { USD: 33, EUR: 36, GBP: 42, JPY: 0.22, SGD: 25, CNY: 4.6, HKD: 4.3, AUD: 22, KRW: 0.024, MYR: 7.5 };
+
+/** Parse a bank/card notification into a transaction draft. Foreign currency is converted at a rough rate and flagged. */
+export function parseNotification(text: string): Omit<Txn, 'id' | 'cat' | 'status'> | null {
+  const p = parseRaw(text); if (!p) return null;
+  const foreign = p.cur !== 'THB';
+  return { ts: Date.now(), amount: foreign ? Math.round(p.amount * (FX_THB[p.cur] ?? 1)) : p.amount, inc: p.inc, merchant: p.merchant, account: p.account, raw: text, source: 'notif', ...(foreign ? { fx: { cur: p.cur, amt: p.amount } } : {}) };
+}
+
+/** True if the same purchase was already captured in the last 15 minutes (SMS + app push for one charge). */
+export function isDuplicate(t: Pick<Txn, 'amount' | 'merchant' | 'account' | 'raw' | 'fx'>, now = Date.now()) {
+  const p = t.raw ? parseRaw(t.raw) : null;
+  const key = p ? dupKey(p) : null;
+  return txns.value.some((x) => now - x.ts < 15 * 60e3 && (key && x.raw ? (() => { const q = parseRaw(x.raw!); return !!q && dupKey(q) === key; })() : x.amount === t.amount && x.merchant === t.merchant && x.account === t.account));
+}
