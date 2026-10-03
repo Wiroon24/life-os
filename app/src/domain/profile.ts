@@ -38,4 +38,7 @@ export const profile = persisted<Profile>('profile', {
 });
 
 /** AI key for direct calls until the Cloud Function proxy exists. */
-export const settings = persisted('settings', { apiKey: '', model: 'claude-opus-5-5', numFont: 'Anuphan' as 'Anuphan' | 'Outfit', nagLevel: 3, quietFrom: '00:30', quietTo: '07:30' });
+export const settings = persisted('settings', { apiKey: '', model: 'claude-sonnet-5-5', modelChosen: false, numFont: 'Anuphan' as 'Anuphan' | 'Outfit', nagLevel: 3, quietFrom: '00:30', quietTo: '07:30' });
+
+/** Devices that saved the old Opus default (without ever choosing it) move to the new Sonnet default. */
+if (!settings.value.modelChosen && settings.value.model === 'claude-opus-5-5') settings.value = { ...settings.value, model: 'claude-sonnet-5-5' };

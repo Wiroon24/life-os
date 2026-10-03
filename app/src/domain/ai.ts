@@ -13,7 +13,7 @@ export function client() {
   if (!cached || cached.key !== key) cached = { key, c: new Anthropic({ apiKey: key, dangerouslyAllowBrowser: true }) };
   return cached.c;
 }
-export const model = () => settings.value.model || 'claude-opus-5-5';
+export const model = () => settings.value.model || 'claude-sonnet-5-5';
 export const FALLBACK = { betas: ['server-side-fallback-2026-07-01'] as Anthropic.Beta.AnthropicBeta[], fallbacks: 'default' as const };
 
 export class AIError extends Error {}

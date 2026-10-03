@@ -135,7 +135,7 @@ export function Profile() {
 
 function AISettings() {
   const [key, setKey] = useState(settings.value.apiKey), [show, setShow] = useState(false);
-  const MODELS: [string, string, string][] = [['claude-opus-5-5', 'Claude Opus 5.5', 'ฉลาดที่สุด · ค่าใช้จ่ายสูงกว่า'], ['claude-sonnet-5-5', 'Claude Sonnet 5.5', 'เร็ว ประหยัด เหมาะกับงบ 100–300 ฿/เดือน'], ['claude-haiku-4-5', 'Claude Haiku 4.5', 'ถูกที่สุด อ่านรูปได้ แม่นน้อยกว่า']];
+  const MODELS: [string, string, string][] = [['claude-sonnet-5-5', 'Claude Sonnet 5.5 (แนะนำ)', 'เร็ว ประหยัด เหมาะกับงบ 100–300 ฿/เดือน'], ['claude-opus-5-5', 'Claude Opus 5.5', 'ฉลาดที่สุด · ค่าใช้จ่ายสูงกว่า'], ['claude-haiku-4-5', 'Claude Haiku 4.5', 'ถูกที่สุด อ่านรูปได้ แม่นน้อยกว่า']];
   return <>
     <div class="card" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
       <span class="t16">Claude API key</span>
@@ -145,7 +145,7 @@ function AISettings() {
     </div>
     <span class="muted" style={{ fontSize: 13, fontWeight: 600, padding: '0 4px' }}>รุ่น AI</span>
     {MODELS.map(([id, l, s]) => { const on = settings.value.model === id; return (
-      <button style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 14, borderRadius: 18, background: '#fff', textAlign: 'left', boxShadow: on ? '0 0 0 2px var(--ink)' : 'var(--shadow-1)' }} onClick={() => (settings.value = { ...settings.value, model: id })}>
+      <button style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 14, borderRadius: 18, background: '#fff', textAlign: 'left', boxShadow: on ? '0 0 0 2px var(--ink)' : 'var(--shadow-1)' }} onClick={() => (settings.value = { ...settings.value, model: id, modelChosen: true })}>
         <span style={{ width: 24, height: 24, flex: 'none', borderRadius: 999, boxShadow: on ? 'inset 0 0 0 7px var(--ink)' : 'inset 0 0 0 2px #CFCBC1' }} /><span class="col"><span class="t16">{l}</span><span class="cap muted">{s}</span></span>
       </button>); })}
   </>;
