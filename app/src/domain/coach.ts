@@ -32,7 +32,8 @@ export const memories = persisted<Memory[]>('coachMemory', () => [
 export const typing = persisted('coachTyping', false);
 const nudged = persisted<Record<string, boolean>>('nudged', {});
 
-const say = (m: Omit<Msg, 'id' | 'ts'>) => { const x = { ...m, id: uid(), ts: Date.now() }; chat.value = [...chat.value, x]; return x; };
+const MAX_CHAT = 300;
+const say = (m: Omit<Msg, 'id' | 'ts'>) => { const x = { ...m, id: uid(), ts: Date.now() }; chat.value = [...chat.value, x].slice(-MAX_CHAT); return x; };
 export const updateMsg = (id: string, patch: Partial<Msg>) => (chat.value = chat.value.map((m) => (m.id === id ? { ...m, ...patch } : m)));
 
 const TONE = {

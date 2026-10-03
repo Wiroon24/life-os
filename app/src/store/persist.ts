@@ -36,3 +36,14 @@ export function resetAll() {
 }
 
 export const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+
+/** Restore a backup file produced by exportAll (wrapped as {app:'iam5', data}). Replaces everything. */
+export function importAll(json: string): boolean {
+  try {
+    const d = JSON.parse(json);
+    if (d?.app !== 'iam5' || typeof d.data !== 'object') return false;
+    resetAll();
+    for (const [k, v] of Object.entries(d.data)) localStorage.setItem(PREFIX + k, JSON.stringify(v));
+    return true;
+  } catch { return false; }
+}

@@ -35,6 +35,8 @@ export const debts = persisted<Debt[]>('debts', () => [
 ].map((d, i) => ({ ...d, id: uid(), order: i + 1, source: 'seed' as const })));
 
 export const txns = persisted<Txn[]>('txns', []);
+/** Keep storage small: drop the raw notification text of confirmed items after 60 days. */
+export function trimRaw() { const cut = Date.now() - 60 * 864e5; if (txns.value.some((t) => t.raw && t.status === 'confirmed' && t.ts < cut)) txns.value = txns.value.map((t) => (t.raw && t.status === 'confirmed' && t.ts < cut ? { ...t, raw: undefined } : t)); }
 export const catMemory = persisted<Record<string, string>>('catMemory', {});
 /** Pay plan per cycle start (debt extra + reserve); `default` is the template. */
 export const payPlans = persisted<Record<string, { debt: number; reserve: number; applied?: boolean }>>('payPlans', { default: { debt: 1500, reserve: 3100 } });

@@ -2,7 +2,7 @@ import { useState } from 'preact/hooks';
 import { Icon, TopBar } from '../../ui/kit';
 import { back, push } from '../../store/nav';
 import { openSheet, closeSheet, toast } from '../../store/ui';
-import { exportAll, resetAll } from '../../store/persist';
+import { exportAll, resetAll, importAll } from '../../store/persist';
 import { live, type Item } from '../../store/collection';
 import { profile, settings } from '../../domain/profile';
 import { template } from '../../domain/plan';
@@ -61,7 +61,8 @@ export function Profile() {
           ]],
           ['อื่นๆ', [
             ['delete', 'ถังขยะ', `${trash.length} รายการ · กู้คืนได้ 30 วัน`, '#EFEDE7', '#6B6962', () => setV('trash')],
-            ['download', 'สำรองข้อมูล', 'ดาวน์โหลดไฟล์ JSON · กู้คืนได้', '#ECF2FF', '#1F5FD6', backup],
+            ['download', 'สำรองข้อมูล', 'ดาวน์โหลดไฟล์ JSON เก็บไว้เอง', '#ECF2FF', '#1F5FD6', backup],
+            ['upload', 'กู้คืนข้อมูลจากไฟล์', 'เลือกไฟล์สำรอง · ข้อมูลปัจจุบันจะถูกแทนที่', '#FFF4E3', '#9A5800', restore],
           ]],
         ] as [string, [string, string, string, string, string, () => void][]][]).map(([h, rows]) => (
           <div class="col" style={{ gap: 6 }}><span class="muted" style={{ fontSize: 13, fontWeight: 600, padding: '0 4px' }}>{h}</span>
@@ -184,4 +185,14 @@ function backup() {
   const blob = new Blob([JSON.stringify({ app: 'iam5', at: new Date().toISOString(), data: exportAll() }, null, 1)], { type: 'application/json' });
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `iam-backup-${new Date().toISOString().slice(0, 10)}.json`; a.click();
   toast('ดาวน์โหลดไฟล์สำรองแล้ว');
+}
+
+function restore() {
+  const i = document.createElement('input'); i.type = 'file'; i.accept = 'application/json,.json';
+  i.onchange = async () => {
+    const f = i.files?.[0]; if (!f) return;
+    if (!confirm('กู้คืนจากไฟล์นี้? ข้อมูลปัจจุบันในเครื่องจะถูกแทนที่ทั้งหมด')) return;
+    if (importAll(await f.text())) { toast('กู้คืนแล้ว กำลังเปิดแอปใหม่…'); setTimeout(() => location.reload(), 600); } else toast('ไฟล์นี้ไม่ใช่ไฟล์สำรองของ Iam');
+  };
+  i.click();
 }
