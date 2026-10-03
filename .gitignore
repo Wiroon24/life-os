@@ -2,3 +2,4 @@ node_modules/
 .firebase/
 .claude/
 .DS_Store
+app/dist/
