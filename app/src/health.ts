@@ -1,5 +1,6 @@
 import { Capacitor } from '@capacitor/core';
 import { App } from '@capacitor/app';
+import { signal } from '@preact/signals';
 import { persisted, uid } from './store/persist';
 import { dayKey, addDays } from './domain/time';
 import { sleepLog, type Night } from './domain/sleep';
@@ -11,6 +12,17 @@ export const healthState = persisted<{ on: boolean; last: number; msg: string; c
 /** Daily numbers that have no home elsewhere: steps, resting heart rate, active kcal. */
 export const healthDaily = persisted<Record<string, { steps?: number; rhr?: number; kcal?: number }>>('healthDaily', {});
 
+export const BUILD = 'hc-2026-10-05b';
+/** Visible trace of what the native calls did, because the permission flow runs outside the WebView. */
+export const healthLog = signal<string[]>([]);
+const note = (s: string) => { healthLog.value = [...healthLog.value.slice(-14), `${new Date().toLocaleTimeString('th-TH')} ${s}`]; };
+async function step<T>(name: string, p: Promise<T>, ms = 10000): Promise<T> {
+  note(`${name}…`); const t0 = Date.now();
+  try {
+    const r = await Promise.race([p, new Promise<never>((_, bad) => setTimeout(() => bad(new Error(`ไม่ตอบใน ${ms / 1000} วิ`)), ms))]);
+    note(`${name} ✓ ${Date.now() - t0}ms ${JSON.stringify(r)?.slice(0, 90) ?? ''}`); return r;
+  } catch (e) { note(`${name} ✗ ${e instanceof Error ? e.message : String(e)}`); throw e; }
+}
 const READ = ['sleep', 'weight', 'steps', 'restingHeartRate', 'calories', 'workouts'] as const;
 type HealthPlugin = typeof import('@capgo/capacitor-health').Health;
 let H: HealthPlugin | null = null;
@@ -18,14 +30,14 @@ const plugin = async () => (H ??= (await import('@capgo/capacitor-health')).Heal
 
 export async function healthAvailable() {
   if (!isNative) return { ok: false, why: 'ใช้ได้เฉพาะแอป Android ที่ติดตั้งแล้ว' };
-  try { const r = await (await plugin()).isAvailable(); return { ok: r.available, why: r.reason ?? 'เครื่องนี้ยังไม่มี Health Connect' }; } catch (e) { return { ok: false, why: String(e) }; }
+  try { note(`ปลั๊กอิน Health ${Capacitor.isPluginAvailable('Health') ? 'พร้อม' : 'ไม่พบ'}`); const h = await step('โหลดปลั๊กอิน', plugin()); const r = await step('isAvailable', h.isAvailable()); return { ok: r.available, why: r.reason ?? 'เครื่องนี้ยังไม่มี Health Connect' }; } catch (e) { return { ok: false, why: String(e) }; }
 }
 
 /** Is anything already allowed? (The permission screen can outlive the app process, so never rely on the request promise alone.) */
 export async function refreshHealth() {
   if (!isNative) return false;
   try {
-    const r = await (await plugin()).checkAuthorization({ read: [...READ] as never });
+    const r = await step('checkAuthorization', (async () => (await plugin()).checkAuthorization({ read: [...READ] as never }))());
     const ok = r.readAuthorized.length > 0;
     if (ok !== healthState.value.on) healthState.value = { ...healthState.value, on: ok, msg: ok ? `อนุญาตแล้ว ${r.readAuthorized.length} ประเภท` : healthState.value.msg };
     return ok;
@@ -39,14 +51,14 @@ export async function connectHealth() {
   healthState.value = { ...healthState.value, msg: 'กำลังขอสิทธิ์…' };
   try {
     if (await refreshHealth()) { await syncHealth(true); return true; }
-    const r = await h.requestAuthorization({ read: [...READ] as never });
+    const r = await step('requestAuthorization', h.requestAuthorization({ read: [...READ] as never }), 120000);
     const ok = r.readAuthorized.length > 0;
     healthState.value = { ...healthState.value, on: ok, msg: ok ? `อนุญาตแล้ว ${r.readAuthorized.length} ประเภท${r.readDenied.length ? ` · ปฏิเสธ ${r.readDenied.join(', ')}` : ''}` : 'ยังไม่ได้อนุญาต' };
     if (ok) await syncHealth(true);
     return ok;
   } catch (e) { healthState.value = { ...healthState.value, msg: `เชื่อมไม่สำเร็จ: ${String(e).slice(0, 80)}` }; return false; }
 }
-export async function openHealthSettings() { try { await (await plugin()).openHealthConnectSettings(); } catch { /* ignore */ } }
+export async function openHealthSettings() { try { await step('openHealthConnectSettings', (async () => (await plugin()).openHealthConnectSettings())()); } catch { /* shown in the log */ } }
 
 const WORKOUT_TH: Record<string, string> = { basketball: 'บาสเกตบอล', running: 'วิ่ง', runningTreadmill: 'วิ่งลู่', walking: 'เดิน', cycling: 'ปั่นจักรยาน', swimming: 'ว่ายน้ำ', strengthTraining: 'เวทเทรนนิ่ง', traditionalStrengthTraining: 'เวทเทรนนิ่ง', weightlifting: 'ยกน้ำหนัก', yoga: 'โยคะ', highIntensityIntervalTraining: 'HIIT', hiking: 'เดินป่า', badminton: 'แบดมินตัน', soccer: 'ฟุตบอล', tennis: 'เทนนิส' };
 const iso = (d: Date) => d.toISOString();

@@ -13,7 +13,7 @@ import { latestW } from '../../domain/body';
 import { notif, TOPICS, tune } from '../../domain/reminders';
 import { ensurePermission } from '../../store/notify';
 import { fromMin, thDate, dayKey } from '../../domain/time';
-import { healthState, healthDaily, healthAvailable, connectHealth, refreshHealth, syncHealth, openHealthSettings, lastDays } from '../../health';
+import { healthState, healthDaily, healthAvailable, connectHealth, refreshHealth, healthLog, BUILD, syncHealth, openHealthSettings, lastDays } from '../../health';
 import type { Signal } from '@preact/signals';
 import { Stepper } from '../sheets';
 import { isNative, captureStatus, openListenerSettings, listApps, setCapturePackages, setCaptureSenders } from '../../native';
@@ -167,14 +167,15 @@ function HealthSection() {
       {isNative && <>
         <span class="small muted" style={{ lineHeight: 1.55 }}>ต้องเปิดที่แอป Zepp ก่อน: โปรไฟล์ → การเชื่อมต่อบัญชีบุคคลที่สาม → Health Connect แล้วอนุญาตให้ส่งข้อมูล จากนั้นกดเชื่อมด้านล่าง แอปอ่านอย่างเดียว ไม่เขียนกลับ ข้อมูลอยู่ในเครื่อง</span>
         <div class="row" style={{ gap: 8 }}>
-          <button class="btn primary grow" disabled={busy} onClick={() => go(async () => { const ok = await connectHealth(); toast(ok ? 'เชื่อมแล้ว' : 'ยังไม่ได้เชื่อม'); })}>{h.on ? 'ขอสิทธิ์อีกครั้ง' : 'เชื่อม Health Connect'}</button>
+          <button class="btn primary grow" disabled={busy} onClick={() => { toast('กำลังทำงาน…'); void go(async () => { const ok = await connectHealth(); toast(ok ? 'เชื่อมแล้ว' : 'ยังไม่ได้เชื่อม'); }); }}>{h.on ? 'ขอสิทธิ์อีกครั้ง' : 'เชื่อม Health Connect'}</button>
           {h.on && <button class="btn soft grow" disabled={busy} onClick={() => go(async () => { await syncHealth(true); toast('ซิงก์แล้ว'); })}>ซิงก์ตอนนี้</button>}
         </div>
         {h.msg && <span class="small muted">{h.msg}{h.last ? ` · ${new Date(h.last).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}` : ''}</span>}
         {h.on && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 6 }}>
           {[['ก้าววันนี้', today.steps], ['ชีพจรพักล่าสุด', today.rhr ?? y.rhr], ['kcal กิจกรรม', today.kcal]].map(([l, v]) => <span class="col" style={{ background: 'var(--surface-2)', borderRadius: 12, padding: '8px 10px' }}><span class="muted" style={{ fontSize: 11.5 }}>{l}</span><span class="num" style={{ fontSize: 15, fontWeight: 600 }}>{v != null ? Number(v).toLocaleString() : '—'}</span></span>)}
         </div>}
-        <button class="small" style={{ alignSelf: 'flex-start', fontWeight: 600, textDecoration: 'underline' }} onClick={() => openHealthSettings()}>เปิดการตั้งค่า Health Connect</button>
+        <button class="small" style={{ alignSelf: 'flex-start', fontWeight: 600, textDecoration: 'underline' }} onClick={() => { toast('กำลังเปิด…'); void openHealthSettings(); }}>เปิดการตั้งค่า Health Connect</button>
+        <div style={{ background: 'var(--surface-2)', borderRadius: 12, padding: '8px 10px', fontSize: 11.5, lineHeight: 1.5, wordBreak: 'break-all' }}><b>บันทึกการทำงาน · {BUILD}</b>{healthLog.value.length ? healthLog.value.map((l) => <div>{l}</div>) : <div class="muted">ยังไม่มี กดปุ่มด้านบนแล้วดูตรงนี้</div>}</div>
       </>}
     </div>
   </>;
