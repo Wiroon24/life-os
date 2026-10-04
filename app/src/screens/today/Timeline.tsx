@@ -6,6 +6,8 @@ import { thDate, fromMin } from '../../domain/time';
 import { editBlock, removeBlock, dayState, patchDay, type Block } from '../../domain/plan';
 import { dayView } from './logic';
 import { openBlockActions, openBlockEdit } from '../sheets';
+import { useBack } from '../../ui/back';
+import { openTaskEditor } from '../task';
 
 const HOUR = 72, H0 = 6;
 const snap = (m: number) => Math.round(m / 15) * 15;
@@ -16,6 +18,7 @@ export function Timeline({ edit: edit0 }: { edit?: boolean }) {
   const [edit, setEdit] = useState(!!edit0);
   const [g, setG] = useState<{ id: string; x0: number; y0: number; s0: number; d0: number; mode: null | 'move' | 'swipe' | 'resize'; dx: number; s: number; d: number } | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
+  useBack(() => { if (edit) { setEdit(false); return true; } return false; }, edit);
   const H1 = Math.max(26, Math.ceil((Math.max(...v.blocks.map((b) => b.start + b.dur), 0) + 30) / 60));
   useEffect(() => { const el = document.scrollingElement; if (el) el.scrollTop = Math.max(0, ((now / 60 - H0) * HOUR) - 200); }, []);
 
@@ -122,7 +125,7 @@ export function Timeline({ edit: edit0 }: { edit?: boolean }) {
           </div>
         )}
       </div>
-      {edit && <button class="btn dark lg" style={{ position: 'fixed', right: 'max(16px, calc(50% - 199px))', bottom: 'calc(28px + env(safe-area-inset-bottom))', zIndex: 30, boxShadow: 'var(--shadow-2)' }} onClick={() => openBlockEdit(key, date, null, { start: snap(Math.max(now + 30, H0 * 60)), dur: 30 })}><Icon n="add" />เพิ่มรายการ</button>}
+      {edit && <button class="btn dark lg" style={{ position: 'fixed', right: 'max(16px, calc(50% - 199px))', bottom: 'calc(28px + env(safe-area-inset-bottom))', zIndex: 30, boxShadow: 'var(--shadow-2)' }} onClick={() => openTaskEditor({ date })}><Icon n="add" />เพิ่มรายการ</button>}
     </div>
   );
 }

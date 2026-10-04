@@ -3,13 +3,14 @@ import { Icon, Ring, ROLE, Burst, SoWhat, Medal } from '../../ui/kit';
 import { tick, toast } from '../../store/ui';
 import { openBody } from '../body/BodyTab';
 import { push, goTab } from '../../store/nav';
-import { thDate, fromMin } from '../../domain/time';
-import { setStatus, editBlock, patchDay, addBlock, type Block } from '../../domain/plan';
+import { thDate, fromMin, addDays } from '../../domain/time';
+import { setStatus, editBlock, patchDay, addBlock, blocksFor, type Block } from '../../domain/plan';
 import { medProgress, medsFor, isEvenDay } from '../../domain/meds';
 import { nightFor, hoursOf, recovery } from '../../domain/sleep';
 import { profile } from '../../domain/profile';
 import { dayView, nowLabel, rings, soWhat } from './logic';
 import { openWeigh, openFoodQuick } from '../sheets';
+import { openTaskEditor } from '../task';
 import { persisted } from '../../store/persist';
 import { doneOn } from '../../domain/training';
 
@@ -32,6 +33,7 @@ function primaryFor(b: Block): { label: string; icon: string; go?: () => void } 
     case 'meds-night': return { label: 'เปิดรายการ', icon: 'checklist', go: () => push('meds', { slot: 'night' }) };
     case 'close': return { label: 'ปิดวัน', icon: 'bedtime', go: () => push('close') };
     case 'checkin': return { label: 'เริ่มเช็กอิน', icon: 'forum', go: () => openBody('trends') };
+    case 'med-item': return { label: 'เปิดรายการ', icon: 'checklist', go: () => push('meds', { slot: 'timed' }) };
     case 'weigh': return { label: 'ชั่งเลย', icon: 'monitor_weight' };
     case 'meal': return { label: 'บันทึก', icon: 'add' };
     default: return { label: 'ทำแล้ว', icon: 'check' };
@@ -50,6 +52,7 @@ export function TodayTab() {
   const rs = rings(date), sw = soWhat(date, now);
   const medSlot = now < 15 * 60 ? 'morning' : 'night', mp = medProgress(medSlot, date);
   const up = v.pending.filter((b) => b !== cur && b !== next && b.start >= now - 30).slice(0, 3);
+  const upcoming = [1, 2, 3, 4, 5, 6, 7].flatMap((o) => { const dd = addDays(date, o); return blocksFor(dd).filter((b) => (b.kind === 'todo' || b.kind === 'event') && b.source === 'user').map((b) => ({ b, dayLabel: o === 1 ? 'พรุ่งนี้' : thDate(dd).split(' ').slice(0, 2).join(' ') })); }).slice(0, 4);
   const showBrief = now < 13 * 60 && briefSeen.value !== key;
   const showClose = now >= 21 * 60;
   const sleptH = hoursOf(nightFor(date)), rec = recovery(date);
@@ -174,7 +177,7 @@ export function TodayTab() {
       )}
 
       <div class="col" style={{ gap: 8 }}>
-        <div class="sec-head"><span class="h2">ต่อจากนี้</span><button class="btn" style={{ padding: '0 4px 0 12px' }} onClick={() => push('timeline')}>ดูทั้งวัน<Icon n="chevron_right" size={22} /></button></div>
+        <div class="sec-head"><span class="h2">ต่อจากนี้</span><span class="row" style={{ gap: 4 }}><button class="btn soft" style={{ height: 40, padding: '0 14px', fontSize: 14 }} onClick={() => openTaskEditor()}><Icon n="add" size={18} />เพิ่ม</button><button class="btn" style={{ padding: '0 4px 0 8px' }} onClick={() => push('timeline')}>ดูทั้งวัน<Icon n="chevron_right" size={22} /></button></span></div>
         {up.length === 0 && <span class="small muted" style={{ padding: '0 4px' }}>ไม่มีอะไรต่อแล้ววันนี้</span>}
         {up.map((u) => (
           <div style={{ display: 'grid', gridTemplateColumns: '44px minmax(0,1fr)', gap: 10 }}>
@@ -186,6 +189,17 @@ export function TodayTab() {
           </div>
         ))}
       </div>
+
+      {upcoming.length > 0 && (
+        <div class="col" style={{ gap: 6 }}>
+          <span class="muted" style={{ fontSize: 13, fontWeight: 600, padding: '0 4px' }}>นัดหมายที่จะถึง</span>
+          <div class="card" style={{ padding: '2px 12px' }}>{upcoming.map((u, i) => (
+            <button class="row" style={{ width: '100%', gap: 10, minHeight: 56, textAlign: 'left', boxShadow: i ? 'inset 0 1px 0 var(--surface-2)' : 'none' }} onClick={() => push('timeline')}>
+              <span class="col" style={{ width: 46, alignItems: 'center' }}><span style={{ fontSize: 12.5, fontWeight: 600 }}>{u.dayLabel}</span><span class="num muted" style={{ fontSize: 12 }}>{fromMin(u.b.start)}</span></span>
+              <span class="grow" style={{ fontSize: 15, fontWeight: 600 }}>{u.b.title}</span><Icon n={u.b.kind === 'todo' ? 'task_alt' : u.b.icon} size={20} color="var(--ink-2)" />
+            </button>))}</div>
+        </div>
+      )}
 
       {showClose && (
         <button class="press" style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'var(--ink)', color: '#fff', borderRadius: 20, padding: '14px 8px 14px 14px', textAlign: 'left' }} onClick={() => push('close')}>

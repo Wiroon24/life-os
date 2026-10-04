@@ -193,7 +193,15 @@ export function Goals() {
         ))}
       </div>
       {isC && <button class="btn soft" style={{ height: 52 }} onClick={() => { const c = { ...customTargets.value }; delete c[d]; customTargets.value = c; toast('กลับไปใช้ค่า AI'); }}><Icon n="auto_awesome" size={20} />กลับไปใช้ค่า AI</button>}
-      <span class="cap muted" style={{ padding: '0 4px', lineHeight: 1.5 }}>โปรตีน ~2.5 g ต่อกิโลกรัมของมวลไม่รวมไขมัน · ขาดเฉลี่ย ~450 kcal ต่อวัน · วันซ้อมได้คาร์บมากกว่า</span>
+      <div class="card" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <span class="h2">ทำไมโปรตีน {cur.p} g</span>
+        <span style={{ fontSize: 15, lineHeight: 1.6 }}>มวลไม่รวมไขมัน (LBM) ของคุณจาก InBody ราว 63 kg ไม่ใช่น้ำหนักตัวทั้งหมด{w ? ` (${w} kg)` : ''} เลขโปรตีนจึงดูสูงเมื่อเทียบกับ LBM ที่ตัวเลขดูน้อย</span>
+        <div class="col" style={{ gap: 4, background: 'var(--surface-2)', borderRadius: 14, padding: 12 }}>
+          {[['ตามมวล LBM', `${(cur.p / 63.2).toFixed(1)} g/kg LBM`], ['ตามน้ำหนักปัจจุบัน', w ? `${(cur.p / w).toFixed(2)} g/kg` : '-'], ['ตามน้ำหนักเป้าหมาย ~79 kg', `${(cur.p / 79).toFixed(1)} g/kg`]].map(([a, b]) => <div class="row" style={{ justifyContent: 'space-between' }}><span style={{ fontSize: 14 }}>{a}</span><span class="num" style={{ fontSize: 14, fontWeight: 600 }}>{b}</span></div>)}
+        </div>
+        <span class="muted" style={{ fontSize: 14, lineHeight: 1.6 }}>ช่วงที่งานวิจัยรองรับสำหรับคนที่ลดไขมันพร้อมเล่นเวทคือ ประมาณ 1.6–2.4 g ต่อน้ำหนักตัวหนึ่งกิโล หรือ 2.0–2.5 g ต่อ LBM ในช่วงขาดแคลอรี่ ซึ่งคือราว 130–160 g สำหรับคุณ 160 g เป็นปลายบน (เผื่อกล้ามเนื้อไม่หายตอนขาด) ถ้ากินได้ยาก ลดเหลือ 140 g ผลต่างกันไม่มาก ให้ปรับด้านบนได้เลย</span>
+        <span class="muted" style={{ fontSize: 14, lineHeight: 1.6 }}>แคลอรี่ = TDEE ลบประมาณ 450 kcal ต่อวัน (ลดราว 0.4–0.5 kg/สัปดาห์ ไม่ลดเร็วจนเสียกล้ามเนื้อ) วันซ้อมได้คาร์บเพิ่ม เพราะเป็นเชื้อเพลิงของเวท</span>
+      </div>
     </div>
   );
 }

@@ -45,6 +45,14 @@
         </provider>
     </application>
 
+    <!-- Lets the app list launcher apps so the user can choose which ones to read notifications from -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
+
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />

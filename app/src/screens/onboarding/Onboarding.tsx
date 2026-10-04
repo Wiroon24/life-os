@@ -15,6 +15,7 @@ import { analyzeImage } from '../../domain/capture';
 import { ensurePermission } from '../../store/notify';
 import { fromMin, toMin, thDateLong } from '../../domain/time';
 import { Stepper } from '../sheets';
+import { useBack } from '../../ui/back';
 
 const STEPS = ['intro', 'name', 'body', 'goal', 'injury', 'equip', 'days', 'sleep', 'meds', 'money', 'debt', 'tone', 'perm0', 'perm1', 'perm2', 'done'] as const;
 type K = (typeof STEPS)[number];
@@ -55,6 +56,7 @@ export function Onboarding() {
   const k = STEPS[i], isPerm = k.startsWith('perm'), P = isPerm ? PERM[+k[4]] : null;
   const total = 11, set = (patch: Partial<typeof s>) => setS({ ...s, ...patch });
   const go = (d: number) => setI(Math.max(0, Math.min(STEPS.length - 1, i + d)));
+  useBack(() => { if (i > 0 && k !== 'done') { go(-1); return true; } return false; }, i > 0);
   const opt = (on: boolean) => ({ background: on ? 'var(--ink)' : '#fff', color: on ? '#fff' : 'var(--ink)' });
   const togg = (key: string, l: string) => { let cur = s.sel[key]; const none = /^ไม่มี/.test(l); cur = cur.includes(l) ? cur.filter((x) => x !== l) : none ? [l] : [...cur.filter((x) => !/^ไม่มี/.test(x)), l]; set({ sel: { ...s.sel, [key]: cur } }); };
 

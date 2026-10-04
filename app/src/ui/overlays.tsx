@@ -1,6 +1,7 @@
 import { useState } from 'preact/hooks';
 import { snackbar, sheet, closeSheet, scopeAsk } from '../store/ui';
 import { Icon } from './kit';
+import { useBack } from './back';
 
 export function Snackbar() {
   const s = snackbar.value;
@@ -17,6 +18,7 @@ export function Snackbar() {
 
 export function SheetHost() {
   const s = sheet.value;
+  useBack(() => { closeSheet(); return true; }, !!s);
   if (!s) return null;
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', maxWidth: 430, margin: '0 auto' }}>
@@ -33,8 +35,9 @@ export function SheetHost() {
 export function ScopeSheet() {
   const q = scopeAsk.value;
   const [pick, setPick] = useState<0 | 1>(0);
+  const done = (v: 'today' | 'always' | null) => { if (!q) return; scopeAsk.value = null; setPick(0); q.resolve(v); };
+  useBack(() => { done(null); return true; }, !!q);
   if (!q) return null;
-  const done = (v: 'today' | 'always' | null) => { scopeAsk.value = null; setPick(0); q.resolve(v); };
   const opts: [string, string][] = [['แค่วันนี้', 'เปลี่ยนเฉพาะครั้งนี้'], ['ทุกครั้งต่อจากนี้', 'แก้แม่แบบ ใช้กับครั้งต่อไปทั้งหมด']];
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 70, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', maxWidth: 430, margin: '0 auto' }}>

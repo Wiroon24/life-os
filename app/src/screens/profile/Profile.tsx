@@ -1,4 +1,4 @@
-import { useState } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
 import { Icon, TopBar } from '../../ui/kit';
 import { back, push } from '../../store/nav';
 import { openSheet, closeSheet, toast } from '../../store/ui';
@@ -15,7 +15,8 @@ import { ensurePermission } from '../../store/notify';
 import { fromMin } from '../../domain/time';
 import type { Signal } from '@preact/signals';
 import { Stepper } from '../sheets';
-import { isNative, captureStatus, openListenerSettings } from '../../native';
+import { isNative, captureStatus, openListenerSettings, listApps, setCapturePackages, setCaptureSenders } from '../../native';
+import { useBack } from '../../ui/back';
 
 type V = 'hub' | 'tpl' | 'conn' | 'notif' | 'trash' | 'ai';
 const T: Record<V, string> = { hub: 'โปรไฟล์และตั้งค่า', tpl: 'แม่แบบ', conn: 'การเชื่อมต่อ', notif: 'แจ้งเตือน', trash: 'ถังขยะ', ai: 'ตั้งค่า AI' };
@@ -42,6 +43,7 @@ export function Profile() {
   const days = Math.max(1, Math.round((Date.now() - new Date(p.startDate).getTime()) / 864e5));
   const trash = BINS.flatMap((b) => b.s.value.filter((x) => x.deletedAt).map((x) => ({ ...x, bin: b }))).sort((a, b) => b.deletedAt! - a.deletedAt!);
   const goBack = () => (v === 'hub' ? back() : setV('hub'));
+  useBack(() => { if (v !== 'hub') { setV('hub'); return true; } return false; }, v !== 'hub');
   return (
     <div class="screen sub" style={{ gap: 14 }}>
       <TopBar title={T[v]} onBack={goBack} />
@@ -136,14 +138,47 @@ function ConnScreen() {
           <span class="col grow"><span class="t16">{st?.enabled ? 'เปิดอ่านแจ้งเตือนอยู่' : 'ยังไม่ได้อนุญาต'}</span><span class="muted" style={{ fontSize: 12.5 }}>{st?.enabled ? 'รายการจากแอปที่เลือกจะเข้ากล่องรอยืนยัน' : 'ต้องเปิดสิทธิ์ “การเข้าถึงการแจ้งเตือน” ให้ Iam ครั้งเดียว'}</span></span></div>
         {!st?.enabled && <button class="btn primary lg" onClick={() => openListenerSettings()}>เปิดการตั้งค่า</button>}
       </div>
-      <div class="card" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <span class="t16">อ่านเฉพาะแอปเหล่านี้</span>
-        <div class="row" style={{ flexWrap: 'wrap', gap: 6 }}>{(st?.labels ?? []).map((l) => <span class="chip">{l}</span>)}</div>
-        <span class="cap muted">SMS: เฉพาะผู้ส่ง {(st?.senders ?? []).join(', ')} · แอปอื่น เช่น LINE อีเมล ถูกข้ามโดยไม่อ่านเนื้อหา · ข้อความที่มี OTP ถูกทิ้ง</span>
-        <span class="cap muted">การเลือกแอปเองกำลังทำ</span>
-      </div>
+      <AppPicker />
+      <SenderEditor />
     </>}
   </>;
+}
+
+function AppPicker() {
+  const [apps, setApps] = useState<{ pkg: string; label: string; selected: boolean }[] | null>(null), [q, setQ] = useState('');
+  useEffect(() => { listApps().then(setApps).catch(() => setApps([])); }, []);
+  if (!apps) return <div class="card row muted" style={{ padding: 16, gap: 10 }}><span class="spin" />กำลังดึงรายชื่อแอป…</div>;
+  const toggle = (pkg: string) => { const next = apps.map((a) => (a.pkg === pkg ? { ...a, selected: !a.selected } : a)); setApps(next); setCapturePackages(next.filter((a) => a.selected).map((a) => a.pkg)); };
+  const sel = apps.filter((a) => a.selected), rest = apps.filter((a) => !a.selected && a.label.toLowerCase().includes(q.toLowerCase()));
+  return (
+    <div class="col" style={{ gap: 8 }}>
+      <span class="muted" style={{ fontSize: 13, fontWeight: 600, padding: '0 4px' }}>แอปที่ให้อ่านแจ้งเตือน ({sel.length})</span>
+      <div class="card" style={{ padding: '2px 12px' }}>
+        {sel.length === 0 && <div class="small muted" style={{ padding: '14px 0' }}>ยังไม่ได้เลือกแอปไหน แจ้งเตือนจะไม่ถูกอ่านเลย ค้นหาและติ๊กแอปธนาคารด้านล่าง</div>}
+        {sel.map((a, i) => <div class="row" style={{ gap: 10, minHeight: 56, boxShadow: i ? 'inset 0 1px 0 var(--surface-2)' : 'none' }}><span class="grow t16">{a.label}</span><Toggle on label={a.label} onClick={() => toggle(a.pkg)} /></div>)}
+      </div>
+      <div class="card row" style={{ borderRadius: 999, height: 48, padding: '0 14px', gap: 8 }}><Icon n="search" size={20} color="var(--ink-2)" /><input value={q} onInput={(e) => setQ((e.target as HTMLInputElement).value)} placeholder="ค้นหาแอป เช่น K PLUS, TrueMoney" style={{ flex: 1, minWidth: 0, border: 'none', outline: 'none', background: 'none', fontSize: 15 }} /></div>
+      <div class="card" style={{ padding: '2px 12px' }}>
+        {rest.slice(0, 40).map((a, i) => <div class="row" style={{ gap: 10, minHeight: 52, boxShadow: i ? 'inset 0 1px 0 var(--surface-2)' : 'none' }}><span class="grow" style={{ fontSize: 15 }}>{a.label}</span><Toggle on={false} label={a.label} onClick={() => toggle(a.pkg)} /></div>)}
+        {rest.length === 0 && <div class="small muted" style={{ padding: '14px 0' }}>ไม่พบแอปนี้</div>}
+        {rest.length > 40 && <div class="cap muted" style={{ padding: '10px 0' }}>แสดง 40 จาก {rest.length} · พิมพ์ค้นหาเพื่อกรอง</div>}
+      </div>
+      <span class="cap muted" style={{ padding: '0 4px', lineHeight: 1.5 }}>อ่านเฉพาะแอปที่ติ๊กไว้ แอปอื่น (LINE, อีเมล ฯลฯ) ถูกข้ามโดยไม่อ่านเนื้อหา · ข้อความที่มี OTP ถูกทิ้งเสมอ · ปิดแอปไหนก็หยุดอ่านทันที</span>
+    </div>
+  );
+}
+
+function SenderEditor() {
+  const senders = captureStatus.value?.senders ?? [], [v, setV] = useState('');
+  const save = (list: string[]) => setCaptureSenders(list);
+  return (
+    <div class="card" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <span class="t16">SMS จากผู้ส่ง</span>
+      <span class="cap muted">ข้อความ SMS ธนาคารมาผ่านแอปข้อความ จึงเลือกที่ชื่อผู้ส่งแทน (ตรงกับชื่อที่เห็นในกล่องข้อความ) ผู้ส่งอื่นถูกข้าม</span>
+      <div class="row" style={{ flexWrap: 'wrap', gap: 6 }}>{senders.map((s) => <button class="chip on" onClick={() => save(senders.filter((x) => x !== s))}>{s}<Icon n="close" size={16} /></button>)}</div>
+      <div class="row" style={{ gap: 8 }}><input class="field" value={v} onInput={(e) => setV((e.target as HTMLInputElement).value)} placeholder="เช่น KTC, KBank, SCB, TrueMoney" onKeyDown={(e) => { if (e.key === 'Enter' && v.trim()) { save([...senders, v.trim()]); setV(''); } }} /><button class="btn dark icon" style={{ height: 52 }} onClick={() => { if (v.trim()) { save([...senders, v.trim()]); setV(''); } }} aria-label="เพิ่ม"><Icon n="add" /></button></div>
+    </div>
+  );
 }
 
 function AISettings() {

@@ -4,6 +4,7 @@ import './styles/base.css';
 // Domain modules register plan providers/decorators on import.
 import './domain/training';
 import './domain/money';
+import './domain/medsPlan';
 import { autoWake } from './domain/sleep';
 import { trimRaw } from './domain/money';
 import { App } from './app';

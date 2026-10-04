@@ -3,6 +3,7 @@ import { persisted, uid } from '../store/persist';
 import { live, type Item } from '../store/collection';
 import { dayKey, addDays, nowMin, parseKey } from './time';
 import type { Role } from '../ui/kit';
+import { medProgress, isTaken } from './meds';
 
 /** A block on the day template. start/dur in minutes; start may exceed 1440 (after midnight, same "day"). */
 export interface Block extends Item {
@@ -13,8 +14,10 @@ export interface Block extends Item {
   sub?: string;
   icon: string;
   days: number[];            // weekdays 0..6; empty = every day
-  kind?: 'workout' | 'meal' | 'meds-morning' | 'meds-night' | 'close' | 'sleep' | 'weigh' | 'checkin' | 'prep' | 'bill' | 'move';
+  kind?: 'workout' | 'meal' | 'meds-morning' | 'meds-night' | 'close' | 'sleep' | 'weigh' | 'checkin' | 'prep' | 'bill' | 'move' | 'med-item' | 'todo' | 'event';
   meta?: string[];
+  lead?: number;             // reminder N minutes before start (default: 15 for workouts, else 0)
+  mute?: boolean;            // no reminder
 }
 export type Status = 'done' | 'skip' | 'miss';
 export interface DayState {
@@ -96,6 +99,9 @@ export const appNowMin = () => { const m = nowMin(); return m < 240 ? m + 1440 :
 export function statusOf(k: string, blk: Block, now = appNowMin(), isToday = true): Status | undefined {
   const s = dayState(k).st[blk.id];
   if (s) return s;
+  // The meds checklist is the source of truth for medication blocks.
+  if (blk.kind === 'meds-morning' || blk.kind === 'meds-night') { const pr = medProgress(blk.kind === 'meds-night' ? 'night' : 'morning', parseKey(k)); if (pr.total > 0 && pr.done === pr.total) return 'done'; }
+  if (blk.kind === 'med-item' && isTaken(parseKey(k), blk.id.split(':')[1])) return 'done';
   const day0 = parseKey(k), endTs = day0.getTime() + (blk.start + blk.dur) * 60000;
   if (endTs < installedAt.value) return 'skip';
   if (!isToday) return day0 < parseKey(dayKey(appNow())) ? 'miss' : undefined;
@@ -127,6 +133,11 @@ export function removeBlock(k: string, blk: Block, scope: 'today' | 'always') {
 export function addBlock(k: string, data: Omit<Block, 'id' | 'order'>, scope: 'today' | 'always', date: Date) {
   if (scope === 'always') template.value = [...template.value, { ...data, days: [date.getDay()], id: uid(), order: Date.now(), source: 'user' }];
   else patchDay(k, (d) => ({ ...d, added: [...d.added, { ...data, id: uid(), order: Date.now(), source: 'user' }] }));
+}
+
+/** A repeating item on selected weekdays (0=Sun). Applies to all future days; edit/delete via the template. */
+export function addTemplateBlock(data: Omit<Block, 'id' | 'order' | 'days'>, days: number[]) {
+  template.value = [...template.value, { ...data, days, id: uid(), order: Date.now(), source: 'user' }];
 }
 
 export const todayKey = computed(() => dayKey(appNow()));

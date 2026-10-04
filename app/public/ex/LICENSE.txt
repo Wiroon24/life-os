@@ -1,0 +1,2 @@
+Exercise demonstration images are from the free-exercise-db project
+(https://github.com/yuhonas/free-exercise-db), released under the Unlicense (public domain).

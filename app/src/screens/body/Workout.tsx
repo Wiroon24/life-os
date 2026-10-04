@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
 import { Icon, Ring, Burst } from '../../ui/kit';
+import { ExImg } from './ExerciseInfo';
 import { back, push, stack } from '../../store/nav';
 import { openSheet, closeSheet, askScope, toast } from '../../store/ui';
 import { alertNow, ensurePermission } from '../../store/notify';
@@ -7,6 +8,7 @@ import { thDate } from '../../domain/time';
 import { appNow } from '../../domain/plan';
 import { active, planFor, startWorkout, finishWorkout, estMinutes, suggest, volumeOf, prsOf, warmDone, weekCount, program, LIB, exFromLib, exLogFrom, workouts, type ExLog } from '../../domain/training';
 import { dayKey } from '../../domain/time';
+import { useBack } from '../../ui/back';
 
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.max(0, s) % 60).padStart(2, '0')}`;
 const fmtSet = (kg: number | undefined, r: number | undefined, e: ExLog) => r == null ? '—' : e.unit === 'BW' ? `${r}${e.repUnit !== 'ครั้ง' ? ' ' + e.repUnit : ''}` : e.repUnit === 'นาที' ? `${r} นาที` : `${kg} × ${r}`;
@@ -30,6 +32,7 @@ export function Workout() {
     return () => clearInterval(iv);
   }, []);
 
+  useBack(() => { const r = active.value?.rest; if (r && !r.min) { active.value = { ...active.value!, rest: { ...r, min: true } }; return true; } return false; }, !!(a?.rest && !a.rest.min));
   const setA = (f: (x: NonNullable<typeof a>) => void) => { const c = active.value; if (!c) return; const n = JSON.parse(JSON.stringify(c)); f(n); active.value = n; };
 
   /* ---------- Preview ---------- */
@@ -51,7 +54,7 @@ export function Workout() {
             {p.exercises.map((e, i) => { const s = suggest(e); return (
               <div class="row" style={{ minHeight: 64, boxShadow: i ? 'inset 0 1px 0 var(--surface-2)' : 'none' }}>
                 <span style={{ width: 28, height: 28, flex: 'none', borderRadius: 999, background: 'var(--surface-2)', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{i + 1}</span>
-                <span class="col grow"><span class="t16">{e.name}</span><span class="cap muted">{e.sets} × {e.reps}{e.repUnit !== 'ครั้ง' ? ' ' + e.repUnit : ''} · {e.unit === 'BW' ? 'ตัวเปล่า' : e.unit === 'kg' ? `${s.kg} kg` : `${e.kg}${e.unit}`}</span></span>
+                <button class="col grow" style={{ textAlign: 'left' }} onClick={() => push('exercise', { name: e.name })}><span class="t16">{e.name}</span><span class="cap muted">{e.sets} × {e.reps}{e.repUnit !== 'ครั้ง' ? ' ' + e.repUnit : ''} · {e.unit === 'BW' ? 'ตัวเปล่า' : e.unit === 'kg' ? `${s.kg} kg` : `${e.kg}${e.unit}`}</span></button>
                 <span class="num cap muted">~{Math.round(e.sets * (0.75 + e.rest / 60) + (e.repUnit === 'นาที' ? e.reps : 0))} น.</span>
               </div>); })}
           </div>
@@ -163,6 +166,7 @@ export function Workout() {
 
       {ex ? <div style={{ flex: 1, padding: '12px 16px 120px', display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div class="col" style={{ gap: 6 }}><span class="muted" style={{ fontSize: 13, fontWeight: 600 }}>ท่า {a.cur + 1}/{a.ex.length} · {ex.eq}</span><span style={{ fontSize: 32, fontWeight: 700, lineHeight: 1.15 }}>{ex.name}</span><span class="small muted">{ex.target}</span></div>
+        <ExImg name={ex.name} h={170} /><button class="small" style={{ alignSelf: 'flex-start', fontWeight: 600, textDecoration: 'underline' }} onClick={() => push('exercise', { name: ex.name })}>ทำไมท่านี้ · ทำอย่างไร</button>
         {ex.hint && <span style={{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--success-tint)', color: 'var(--workout-ink)', height: 36, padding: '0 12px', borderRadius: 999, fontSize: 14.5, fontWeight: 600 }}><Icon n={/\+/.test(ex.hint) ? 'trending_up' : 'tips_and_updates'} fill size={18} />{ex.hint}</span>}
         <div class="col" style={{ gap: 6 }}>
           {ex.sets.map((s, i) => i === ai ? (

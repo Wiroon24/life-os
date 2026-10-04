@@ -2,7 +2,7 @@ import { persisted, uid } from '../store/persist';
 import { live, type Item } from '../store/collection';
 import { dayKey } from './time';
 
-export type Slot = 'morning' | 'night';
+export type Slot = 'morning' | 'night' | 'timed';
 export type Sched = 'daily' | 'alt' | 'days';
 export interface Med extends Item {
   slot: Slot;
@@ -11,6 +11,7 @@ export interface Med extends Item {
   sched: Sched;
   days?: number[];           // for 'days'
   alt?: [string, string];    // alternate names: even day / odd day
+  time?: string;             // HH:MM — for slot 'timed' (its own reminder at that time)
 }
 
 const SEED: Omit<Med, 'id' | 'order'>[] = [

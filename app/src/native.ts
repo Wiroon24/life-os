@@ -9,6 +9,7 @@ import { notif } from './domain/reminders';
 import { medLog, meds } from './domain/meds';
 import { workouts } from './domain/training';
 import { toast } from './store/ui';
+import { handleBack, setExitApp } from './ui/back';
 
 export const isNative = Capacitor.isNativePlatform();
 
@@ -18,6 +19,9 @@ interface CapturePlugin {
   openSettings(): Promise<void>;
   setAllowed(o: { labels: string[]; senders: string[] }): Promise<void>;
   drain(): Promise<{ items: Captured[] }>;
+  listApps(): Promise<{ apps: { pkg: string; label: string; selected: boolean }[] }>;
+  setPackages(o: { pkgs: string[] }): Promise<void>;
+  setSenders(o: { senders: string[] }): Promise<void>;
   addListener(ev: 'captured', cb: () => void): Promise<{ remove(): void }>;
 }
 const Capture = isNative ? registerPlugin<CapturePlugin>('NotificationCapture') : null;
@@ -25,6 +29,9 @@ const Capture = isNative ? registerPlugin<CapturePlugin>('NotificationCapture') 
 export const captureStatus = signal<{ enabled: boolean; labels: string[]; senders: string[] } | null>(null);
 export async function refreshCaptureStatus() { if (Capture) captureStatus.value = await Capture.status().catch(() => null); }
 export const openListenerSettings = () => Capture?.openSettings();
+export const listApps = () => (Capture ? Capture.listApps().then((r) => r.apps) : Promise.resolve([]));
+export const setCapturePackages = (pkgs: string[]) => Capture?.setPackages({ pkgs });
+export const setCaptureSenders = async (senders: string[]) => { await Capture?.setSenders({ senders }); await refreshCaptureStatus(); };
 
 /** Pull everything the native listener queued (even while the app was closed) into the money inbox. */
 export async function importCaptured() {
@@ -53,7 +60,7 @@ async function scheduleAll() {
   const n = notif.value, now = Date.now(), list: Parameters<typeof LocalNotifications.schedule>[0]['notifications'] = [];
   const [dndA, dndB] = n.dnd;
   const inDnd = (m: number) => { const x = m % 1440; return dndA < dndB ? x >= dndA && x < dndB : x >= dndA || x < dndB; };
-  for (const off of [0, 1]) {
+  for (const off of [0, 1, 2, 3, 4, 5, 6]) {
     const date = addDays(appNow(), off), key = dayKey(date), midnight = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
     const add = (id: string, minute: number, title: string, body: string | undefined, extra: Record<string, unknown>, bypassDnd = false) => {
       const at = midnight + minute * 60_000; if (at <= now + 5000) return;
@@ -62,19 +69,22 @@ async function scheduleAll() {
     };
     for (const b of blocksFor(date)) {
       if (statusOf(key, b, off ? 0 : undefined, off === 0)) continue;
-      const topic = b.kind === 'workout' ? 'workout' : b.kind?.startsWith('meds') ? 'meds' : b.kind === 'bill' ? 'bills' : b.kind === 'checkin' ? 'checkin' : 'blocks';
-      if (!n.on[topic]) continue;
-      const lead = topic === 'workout' ? 15 : 0, bypass = topic === 'meds';
+      const topic = b.kind === 'workout' ? 'workout' : b.kind?.startsWith('med') ? 'meds' : b.kind === 'bill' ? 'bills' : b.kind === 'checkin' ? 'checkin' : 'blocks';
+      if (!n.on[topic] || b.mute) continue;
+      const lead = b.lead ?? (topic === 'workout' ? 15 : 0), bypass = topic === 'meds';
       add(`${b.id}`, b.start - lead, b.title, b.sub, { blockId: b.id }, bypass);
-      if (n.level === 1 && (topic === 'workout' || topic === 'meds')) [10, 20, 30].forEach((g, i) => add(`${b.id}:nag${i}`, b.start + g, i === 2 ? `ยังไม่ได้${b.title}เลยนะ อีก 10 นาทีจะบันทึกว่าพลาด` : `ยังไม่ได้${b.title}`, undefined, { blockId: b.id }, bypass));
+      if (off <= 1 && n.level === 1 && (topic === 'workout' || topic === 'meds')) [10, 20, 30].forEach((g, i) => add(`${b.id}:nag${i}`, b.start + g, i === 2 ? `ยังไม่ได้${b.title}เลยนะ อีก 10 นาทีจะบันทึกว่าพลาด` : `ยังไม่ได้${b.title}`, undefined, { blockId: b.id }, bypass));
     }
     if (n.on.brief && n.time.brief != null) add('brief', n.time.brief, 'สรุปตอนตื่น', 'แผนวันนี้ + 3 เรื่องสำคัญ', {});
   }
+  list.sort((a, b) => (a.schedule!.at as Date).getTime() - (b.schedule!.at as Date).getTime());
   if (list.length) await LocalNotifications.schedule({ notifications: list.slice(0, 120) });
 }
 
 export async function initNative() {
   if (!isNative) return;
+  setExitApp(() => { App.exitApp(); });
+  App.addListener('backButton', () => { handleBack(); });
   await LocalNotifications.createChannel({ id: 'iam-reminders', name: 'การเตือน', importance: 5, vibration: true, visibility: 1 }).catch(() => {});
   await LocalNotifications.registerActionTypes({ types: [{ id: 'iam-block', actions: [{ id: 'done', title: '✓ ทำแล้ว' }, { id: 'snooze', title: 'เลื่อน 15 นาที' }] }] }).catch(() => {});
   await LocalNotifications.requestPermissions().catch(() => {});

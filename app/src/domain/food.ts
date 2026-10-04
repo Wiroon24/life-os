@@ -31,7 +31,7 @@ export const totalsOn = (d: Date): Macro => entriesOn(d).reduce((a, e) => ({ k: 
 export const slotFor = (time: string) => { const h = +time.slice(0, 2); return h < 10.5 ? 'เช้า' : h < 15 ? 'กลางวัน' : h < 18 ? 'ว่าง' : h < 22 ? 'เย็น' : 'ดึก'; };
 
 export function logFood(items: (Macro & { name: string; icon?: string; source?: FoodEntry['source'] })[], d = new Date()) {
-  const time = clock(), date = dayKey(d.getHours() < 4 ? new Date(d.getTime() - 864e5) : d);
+  const time = clock(d), date = dayKey(d.getHours() < 4 ? new Date(d.getTime() - 864e5) : d);
   const added = items.map((i) => ({ id: uid(), date, time, slot: slotFor(time), icon: 'restaurant', source: 'manual' as const, ...i, k: Math.round(i.k), p: Math.round(i.p), c: Math.round(i.c), f: Math.round(i.f) }));
   foodLog.value = [...foodLog.value, ...added];
   return added.map((a) => a.id);

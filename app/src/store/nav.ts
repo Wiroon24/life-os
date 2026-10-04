@@ -18,6 +18,5 @@ export const back = () => { if (stack.value.length) history.back(); };
 export const goTab = (t: Tab) => { stack.value = []; tab.value = t; window.scrollTo(0, 0); };
 
 window.addEventListener('popstate', () => {
-  if (captureOpen.value) { captureOpen.value = false; return; }
   if (stack.value.length) stack.value = stack.value.slice(0, -1);
 });

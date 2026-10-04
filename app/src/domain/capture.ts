@@ -36,7 +36,7 @@ const sys = () => `คุณอ่านรูปหรือข้อควา�
 - weight: น้ำหนักตัวถ้ามีการบอก
 - section ที่ไม่เกี่ยวให้เป็น null`;
 
-export const analyzeImage = (img: Img) => extract<Parsed>({ system: sys(), images: [img], text: 'รูปนี้คืออะไร แยกข้อมูลให้หน่อย', schema: SCHEMA });
+export const analyzeImage = (img: Img, hint = '') => extract<Parsed>({ system: sys(), images: [img], text: hint.trim() ? `รูปนี้คืออะไร แยกข้อมูลให้หน่อย (ผู้ใช้แก้ให้: ${hint.trim()} — เชื่อตามนี้ แล้วประเมินใหม่)` : 'รูปนี้คืออะไร แยกข้อมูลให้หน่อย', schema: SCHEMA });
 export const analyzeText = (text: string) => extract<Parsed>({ system: sys(), text, schema: SCHEMA });
 
 /** Instant offline parse for common one-liners; AI refines when available. */

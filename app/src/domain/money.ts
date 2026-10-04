@@ -6,18 +6,32 @@ import { addProvider, type Block } from './plan';
 import { dayKey } from './time';
 import { parseNotification as parseRaw, dupKey } from './notif';
 
-export interface Cat extends Item { name: string; budget: number; icon: string; soft: string; ink: string; bar: string; income?: boolean }
+/** What a category means for the budget: expense counts against it, income adds to it, invest/transfer are money moving (not spending). */
+export type CatKind = 'expense' | 'income' | 'invest' | 'transfer';
+export interface Cat extends Item { name: string; budget: number; icon: string; soft: string; ink: string; bar: string; income?: boolean; kind?: CatKind }
+export interface CreditCard extends Item { name: string; last4?: string; limit?: number; cutDay: number; dueDay: number; apr?: number; payInFull: boolean; note?: string }
 export interface Bill extends Item { name: string; amount: number; dueDay: number; approx?: boolean; kind: 'fixed' | 'card' | 'sub'; fixed: boolean }
-export interface Txn { id: string; ts: number; amount: number; inc: boolean; merchant: string; cat: string; account: string; status: 'pending' | 'confirmed'; raw?: string; source?: 'notif' | 'slip' | 'manual' | 'text'; fx?: { cur: string; amt: number } }
+export interface Txn { id: string; ts: number; amount: number; inc: boolean; merchant: string; cat: string; account: string; card?: string; status: 'pending' | 'confirmed'; raw?: string; source?: 'notif' | 'slip' | 'manual' | 'text'; fx?: { cur: string; amt: number } }
 export interface Debt extends Item { name: string; icon: string; balance: number; orig: number; payment: number; rate: number; rateAfter?: number; fixedUntil?: string; meta: string; inBills: boolean }
 
-const C = (name: string, budget: number, icon: string, soft: string, ink: string, bar: string, income = false) => ({ name, budget, icon, soft, ink, bar, income });
+const SEED_EXTRA_RAW: [string, string, string, string, string, CatKind][] = [
+  ['ลงทุน', 'trending_up', '#E6F6FB', '#0B6E8A', '#22A6C9', 'invest'], ['ย้ายบัญชี', 'swap_horiz', '#EFEDE7', '#6B6962', '#A3A097', 'transfer'], ['จ่ายบัตร/หนี้', 'credit_score', '#EFEDE7', '#6B6962', '#A3A097', 'transfer'],
+];
+const SEED_EXTRA: ReturnType<typeof C>[] = [];
+const C = (name: string, budget: number, icon: string, soft: string, ink: string, bar: string, kind: CatKind = 'expense') => ({ name, budget, icon, soft, ink, bar, kind, income: kind === 'income' });
+SEED_EXTRA_RAW.forEach(([n, ic, soft, ink, bar, k]) => SEED_EXTRA.push(C(n, 0, ic, soft, ink, bar, k)));
 export const categories = persisted<Cat[]>('cats', () => [
   C('อาหาร', 6000, 'restaurant', '#FFF4E3', '#9A5800', '#FF9F1C'), C('เดินทาง', 3000, 'directions_car', '#ECF2FF', '#1F5FD6', '#2F7BFF'),
   C('ของใช้', 2500, 'shopping_basket', '#E6F6FB', '#0B6E8A', '#22A6C9'), C('สุขภาพ', 1000, 'favorite', '#FDE7E4', '#B42318', '#F0645A'),
   C('บันเทิง', 1000, 'sports_esports', '#F1EEFF', '#5B3BE0', '#7C5CFF'), C('อื่นๆ', 1000, 'more_horiz', '#EFEDE7', '#6B6962', '#A3A097'),
-  C('ขายของ', 0, 'sell', '#E3F5E8', '#137A38', '#22B455', true), C('รายได้อื่น', 0, 'savings', '#E3F5E8', '#137A38', '#22B455', true),
+  C('ขายของ', 0, 'sell', '#E3F5E8', '#137A38', '#22B455', 'income'), C('รายได้อื่น', 0, 'savings', '#E3F5E8', '#137A38', '#22B455', 'income'),
+  ...SEED_EXTRA,
 ].map((c, i) => ({ ...c, id: uid(), order: i + 1, source: 'seed' as const })));
+
+/** Older installs: add the new money-movement categories and give every category a kind. */
+categories.value = categories.value.map((c) => (c.kind ? c : { ...c, kind: c.income ? 'income' as const : 'expense' as const }));
+for (const [n, ic, soft, ink, bar, k] of SEED_EXTRA_RAW) if (!categories.value.some((c) => c.name === n)) categories.value = [...categories.value, { ...C(n, 0, ic, soft, ink, bar, k), id: uid(), order: Date.now(), source: 'seed' as const }];
+export const kindOfCat = (name: string): CatKind => categories.value.find((c) => c.name === name && !c.deletedAt)?.kind ?? 'expense';
 
 export const bills = persisted<Bill[]>('bills', () => [
   { name: 'บ้าน', amount: 8900, dueDay: 1, kind: 'fixed' as const, fixed: true },
@@ -26,7 +40,8 @@ export const bills = persisted<Bill[]>('bills', () => [
   { name: 'Claude', amount: 700, dueDay: 15, approx: true, kind: 'sub' as const, fixed: true },
 ].map((b, i) => ({ ...b, id: uid(), order: i + 1, source: 'seed' as const })));
 
-export const card = persisted('card', { name: 'KTC', cutDay: 20, dueDay: 5, payInFull: true });
+const legacyCard = (() => { try { return JSON.parse(localStorage.getItem('iam5:card') || 'null'); } catch { return null; } })();
+export const cards = persisted<CreditCard[]>('cards', () => [{ id: uid(), order: 1, name: 'KTC', last4: '7292', cutDay: legacyCard?.cutDay ?? 20, dueDay: legacyCard?.dueDay ?? 5, payInFull: true, source: 'seed' as const }]);
 
 export const debts = persisted<Debt[]>('debts', () => [
   { name: 'รถ', icon: 'directions_car', balance: 216500, orig: 290000, payment: 4383, rate: 5.4, meta: 'เหลือ 56 งวด · งวดละ 4,383 · ยอดต้นประมาณ', inBills: true },
@@ -62,7 +77,7 @@ const inCycle = (t: Txn, c: ReturnType<typeof cycle>) => t.ts >= c.start.getTime
 
 /** Net variable spending: expenses minus side income (salary itself is not a txn). */
 export function spentIn(c = cycle(), until = Infinity) {
-  return txns.value.filter((t) => t.status === 'confirmed' && inCycle(t, c) && t.ts < until).reduce((a, t) => a + (t.inc ? -t.amount : t.amount), 0);
+  return txns.value.filter((t) => t.status === 'confirmed' && inCycle(t, c) && t.ts < until).reduce((a, t) => { const k = kindOfCat(t.cat); return k === 'invest' || k === 'transfer' ? a : a + (k === 'income' || t.inc ? -t.amount : t.amount); }, 0);
 }
 
 export function safeToSpend(today = new Date()) {
@@ -76,13 +91,16 @@ export function safeToSpend(today = new Date()) {
 }
 
 export function catSpend(name: string, c = cycle()) {
-  return txns.value.filter((t) => t.status === 'confirmed' && !t.inc && t.cat === name && inCycle(t, c)).reduce((a, t) => a + t.amount, 0);
+  return txns.value.filter((t) => t.status === 'confirmed' && kindOfCat(t.cat) === 'expense' && t.cat === name && inCycle(t, c)).reduce((a, t) => a + t.amount, 0);
 }
 
 /* ---------- Transactions ---------- */
 export function guessCat(merchant: string, inc: boolean) {
   const m = merchant.toLowerCase().trim();
   if (catMemory.value[m]) return catMemory.value[m];
+  const me = profile.value.name.trim().toLowerCase();
+  if (me && m.includes(me)) return 'ย้ายบัญชี';
+  if (/ซื้อกองทุน|กองทุน|หุ้น|bitkub|binance|dime|settrade|fund/i.test(m)) return 'ลงทุน';
   if (inc) return 'ขายของ';
   const rules: [RegExp, string][] = [
     [/grab\s*food|line\s*man|foodpanda|robinhood|ร้าน|ข้าว|ก๋วยเตี๋ยว|ส้มตำ|กาแฟ|cafe|coffee|starbucks|amazon|mk|kfc|mcdonald|pizza|food/i, 'อาหาร'],
@@ -136,20 +154,20 @@ export function upcomingBills(today = new Date(), withinDays = 40) {
     const d = new Date(today.getFullYear(), today.getMonth() + off, b.dueDay), days = Math.round((d.getTime() - new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime()) / 864e5);
     if (days >= 0 && days <= withinDays) { out.push({ id: b.id, name: b.name, amount: b.amount, date: d, days, approx: b.approx }); break; }
   }
-  const cd = card.value;
-  for (const off of [0, 1]) {
+  for (const cd of live(cards.value)) for (const off of [0, 1]) {
     const d = new Date(today.getFullYear(), today.getMonth() + off, cd.dueDay), days = Math.round((d.getTime() - new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime()) / 864e5);
-    if (days >= 0) { out.push({ id: 'card', name: `บัตร ${cd.name} · จ่ายเต็ม`, amount: cardStatement(today).amount, date: d, days, card: true }); break; }
+    if (days >= 0) { out.push({ id: 'card:' + cd.id, name: `บัตร ${cd.name}${cd.payInFull ? ' · จ่ายเต็ม' : ''}`, amount: cardStatement(cd, today).amount, date: d, days, card: true }); break; }
   }
   return out.sort((a, b) => a.days - b.days);
 }
 
-/** Card spend in the statement period that will be due next. */
-export function cardStatement(today = new Date()) {
-  const cd = card.value, cut = new Date(today.getFullYear(), today.getMonth(), cd.cutDay);
+/** Card spend in the statement period that will be due next. Matches by last 4 digits, else by card name. */
+export function cardStatement(cd: CreditCard, today = new Date()) {
+  const cut = new Date(today.getFullYear(), today.getMonth(), cd.cutDay);
   if (today.getDate() > cd.cutDay) cut.setMonth(cut.getMonth() + 1);
   const from = new Date(cut); from.setMonth(from.getMonth() - 1);
-  const amount = txns.value.filter((t) => t.account === cd.name && !t.inc && t.ts > from.getTime() && t.ts <= cut.getTime() + 864e5).reduce((a, t) => a + t.amount, 0);
+  const mine = (t: Txn) => (cd.last4 && t.card ? t.card === cd.last4 : t.account === cd.name);
+  const amount = txns.value.filter((t) => mine(t) && !t.inc && kindOfCat(t.cat) !== 'transfer' && t.ts > from.getTime() && t.ts <= cut.getTime() + 864e5).reduce((a, t) => a + t.amount, 0);
   return { amount, cut, daysToCut: Math.round((cut.getTime() - new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime()) / 864e5) };
 }
 
@@ -167,7 +185,7 @@ export const FX_THB: Record<string, number> = { USD: 33, EUR: 36, GBP: 42, JPY: 
 export function parseNotification(text: string, appLabel = ''): Omit<Txn, 'id' | 'cat' | 'status'> | null {
   const p = parseRaw(text, appLabel); if (!p) return null;
   const foreign = p.cur !== 'THB';
-  return { ts: Date.now(), amount: foreign ? Math.round(p.amount * (FX_THB[p.cur] ?? 1)) : p.amount, inc: p.inc, merchant: p.merchant, account: p.account, raw: text, source: 'notif', ...(foreign ? { fx: { cur: p.cur, amt: p.amount } } : {}) };
+  return { ts: Date.now(), amount: foreign ? Math.round(p.amount * (FX_THB[p.cur] ?? 1)) : p.amount, inc: p.inc, merchant: p.merchant, account: p.account, card: p.card, raw: text, source: 'notif', ...(foreign ? { fx: { cur: p.cur, amt: p.amount } } : {}) };
 }
 
 /** True if the same purchase was already captured in the last 15 minutes (SMS + app push for one charge). */

@@ -48,6 +48,7 @@ export function TrainSection() {
         </div>
         <span class="cap muted" style={{ padding: '0 4px' }}>ลาก ⋮⋮ เพื่อสลับวันในสัปดาห์นี้ · วันที่ทำแล้วล็อกไว้</span>
       </div>
+      <button class="card press row" style={{ minHeight: 64, padding: '0 16px', gap: 12, textAlign: 'left' }} onClick={() => push('analysis')}><Icon n="insights" fill /><span class="col grow"><span style={{ fontSize: 15.5, fontWeight: 600 }}>ทำไมจัดโปรแกรมแบบนี้</span><span class="muted" style={{ fontSize: 12.5 }}>เหตุผลของท่า · สมดุลกล้ามเนื้อ · เข่า/ข้อเท้า</span></span><Icon n="chevron_right" color="var(--ink-3)" /></button>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
         <button class="card press" style={{ minHeight: 88, padding: 14, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'space-between', textAlign: 'left' }} onClick={() => push('program', { id: ids[today.getDay()] })}><Icon n="edit_note" /><span style={{ fontSize: 15.5, fontWeight: 600 }}>แก้โปรแกรม</span></button>
         <button class="card press" style={{ minHeight: 88, padding: 14, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'space-between', textAlign: 'left' }} onClick={() => push('history', { name: 'DB bench press' })}><Icon n="show_chart" /><span class="col"><span style={{ fontSize: 15.5, fontWeight: 600 }}>ประวัติท่า</span><span class="muted" style={{ fontSize: 12.5 }}>{lastBench ? `Bench ${lastBench.kg} × ${lastBench.reps}` : 'DB bench press'}</span></span></button>

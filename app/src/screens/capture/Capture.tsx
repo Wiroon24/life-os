@@ -6,13 +6,16 @@ import { uid } from '../../store/persist';
 import { live } from '../../store/collection';
 import { dayKey } from '../../domain/time';
 import { appNow, blocksFor, setStatus } from '../../domain/plan';
-import { fileToImg, explain, hasAI } from '../../domain/ai';
+import { fileToImg, explain, hasAI, type Img } from '../../domain/ai';
 import { analyzeImage, analyzeText, quickParse, type Parsed, type Kind } from '../../domain/capture';
 import { fridge, eatBox, foodLog, logFood, unlogFood, water, totalsOn, targetsFor, QUICK } from '../../domain/food';
-import { addTxn, confirmTxns, txns, categories, safeToSpend } from '../../domain/money';
+import { addTxn, confirmTxns, txns, categories, safeToSpend, kindOfCat } from '../../domain/money';
 import { logWeight, weights, inbodies, latestW } from '../../domain/body';
 import { workouts } from '../../domain/training';
 import { openWeigh } from '../sheets';
+import { useBack } from '../../ui/back';
+import { openTaskEditor } from '../task';
+import { openCategoryEditor } from '../money/catSheet';
 
 type Scr = 'sheet' | 'scan' | 'voice' | 'type' | 'result';
 const MEALS = ['เช้า', 'กลางวัน', 'เย็น', 'ว่าง'];
@@ -21,22 +24,25 @@ const KIND: Record<Kind, { l: string; icon: string; soft: string; ink: string }>
   receipt: { l: 'ใบเสร็จ', icon: 'receipt', soft: ROLE.money.soft, ink: ROLE.money.ink }, inbody: { l: 'ผล InBody', icon: 'monitor_weight', soft: ROLE.recovery.soft, ink: ROLE.recovery.ink },
   watch: { l: 'หน้าจอนาฬิกา', icon: 'watch', soft: ROLE.workout.soft, ink: ROLE.workout.ink }, other: { l: 'อื่นๆ', icon: 'help', soft: '#EFEDE7', ink: '#6B6962' },
 };
+const toLocal = (d: Date) => { const p = (n: number) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; };
+const nowLocal = () => toLocal(new Date());
+const mealOf = (h: number) => (h < 11 ? 0 : h < 15 ? 1 : h < 17 ? 3 : 2);
 const defaultMeal = () => { const h = new Date().getHours(); return h < 11 ? 0 : h < 15 ? 1 : h < 17 ? 3 : 2; };
 
 /** Save a parsed capture; returns an undo function. */
-function commit(p: Parsed, portion: number, meal: number, cat: string | null): { msg: string; undo: () => void } {
+function commit(p: Parsed, portion: number, meal: number, cat: string | null, at: Date = new Date()): { msg: string; undo: () => void } {
   const undos: (() => void)[] = []; const parts: string[] = [];
   const foods = p.food?.items.filter((i) => i.kcal > 0) ?? [];
   if (foods.length) {
-    const ids = logFood(foods.map((i) => ({ name: `${i.name}${i.qty && i.qty !== '1 ที่' ? ' ' + i.qty : ''}`, k: i.kcal * portion, p: i.protein * portion, c: i.carb * portion, f: i.fat * portion, icon: 'restaurant', source: 'photo' as const })));
+    const ids = logFood(foods.map((i) => ({ name: `${i.name}${i.qty && i.qty !== '1 ที่' ? ' ' + i.qty : ''}`, k: i.kcal * portion, p: i.protein * portion, c: i.carb * portion, f: i.fat * portion, icon: 'restaurant', source: 'photo' as const })), at);
     foodLog.value = foodLog.value.map((e) => (ids.includes(e.id) ? { ...e, slot: MEALS[meal] } : e));
     undos.push(() => unlogFood(ids));
     parts.push(`มื้อ${MEALS[meal]} ${Math.round(foods.reduce((a, i) => a + i.kcal, 0) * portion)} kcal`);
   }
   if (p.money) {
-    const tx = addTxn({ ts: Date.now(), amount: p.money.amount, inc: p.money.income, merchant: p.money.merchant, account: p.money.account || 'บัญชี', source: p.kind === 'slip' ? 'slip' : 'text', cat: cat ?? (live(categories.value).some((c) => c.name === p.money!.category) ? p.money.category : undefined) });
+    const tx = addTxn({ ts: at.getTime(), amount: p.money.amount, inc: p.money.income, merchant: p.money.merchant, account: p.money.account || 'บัญชี', source: p.kind === 'slip' ? 'slip' : 'text', cat: cat ?? (live(categories.value).some((c) => c.name === p.money!.category) ? p.money.category : undefined) });
     confirmTxns([tx.id]); undos.push(() => (txns.value = txns.value.filter((x) => x.id !== tx.id)));
-    parts.push(`${tx.inc ? 'รายรับ' : 'รายจ่าย'} ${tx.amount.toLocaleString()} ฿ · ${tx.cat}`);
+    parts.push(`${kindOfCat(tx.cat) === 'income' ? 'รายรับ' : kindOfCat(tx.cat) === 'expense' ? 'รายจ่าย' : 'ย้ายเงิน'} ${tx.amount.toLocaleString()} ฿ · ${tx.cat}`);
   }
   if (p.inbody && (p.inbody.weight || p.inbody.smm)) {
     const before = weights.value; const kg = p.inbody.weight ?? latestW()?.kg ?? 0;
@@ -59,17 +65,26 @@ export function Capture() {
   const [p, setP] = useState<Parsed | null>(null), [err, setErr] = useState<string | null>(null);
   const [portion, setPortion] = useState(1), [meal, setMeal] = useState(defaultMeal()), [cat, setCat] = useState<string | null>(null);
   const [text, setText] = useState(''), [aiBusy, setAiBusy] = useState(false), [listening, setListening] = useState(false);
-  const file = useRef<HTMLInputElement>(null), input = useRef<HTMLInputElement>(null), seq = useRef(0);
+  const [imgData, setImgData] = useState<Img | null>(null), [hint, setHint] = useState(''), [when, setWhen] = useState(nowLocal());
+  const file = useRef<HTMLInputElement>(null), gal = useRef<HTMLInputElement>(null), input = useRef<HTMLInputElement>(null), seq = useRef(0);
+  const reset = () => { setScr('sheet'); setImg(null); setP(null); setErr(null); setPortion(1); setMeal(defaultMeal()); setCat(null); setText(''); setImgData(null); setHint(''); setWhen(nowLocal()); setAiBusy(false); setListening(false); };
+  // The component stays mounted while closed, so state must be wiped on each open (otherwise the last result shows again).
+  useEffect(() => { if (captureOpen.value) reset(); }, [captureOpen.value]);
+  useBack(() => { if (scr !== 'sheet') { reset(); return true; } captureOpen.value = false; return true; }, captureOpen.value);
   const close = () => { captureOpen.value = false; };
+  const atDate = () => { const d = new Date(when); return isNaN(d.getTime()) ? new Date() : d; };
   const done = (r: { msg: string; undo: () => void }) => { close(); showUndo(r.msg, r.undo); };
 
   const onFile = async (f?: File) => {
     if (!f) return;
     setErr(null); setP(null); setScr('scan');
     try {
-      const im = await fileToImg(f); setImg(im.url);
+      const im = await fileToImg(f); setImg(im.url); setImgData({ data: im.data, media_type: im.media_type });
       if (!hasAI()) throw new Error('noai');
       const r = await analyzeImage(im); setP(r); setCat(null); setPortion(1); setScr('result');
+      // A photo picked from the gallery keeps its own time, so past meals land on the right day.
+      const taken = f.lastModified && Date.now() - f.lastModified > 10 * 60e3 ? new Date(f.lastModified) : new Date();
+      setWhen(toLocal(taken)); setMeal(mealOf(taken.getHours()));
     } catch (e) { setErr((e as Error).message === 'noai' ? 'ต้องใส่ Claude API key ก่อน ถึงจะอ่านรูปได้ · ไปที่โปรไฟล์ → ตั้งค่า AI' : explain(e)); }
   };
 
@@ -121,7 +136,7 @@ export function Capture() {
   );
   const head = (title: string) => <div class="row" style={{ justifyContent: 'space-between', padding: '8px 8px 0' }}><button class="btn icon" onClick={close} aria-label="ปิด"><Icon n="close" /></button><span class="muted" style={{ fontSize: 15, fontWeight: 600 }}>{title}</span><span style={{ width: 48 }} /></div>;
   const cardsList = <>{parsedCards.map((c) => <div class="card row" style={{ borderRadius: 18, padding: 12, minHeight: 64, animation: 'iam-up 220ms var(--ease-out)' }}><span class="medal" style={{ width: 40, height: 40, background: ROLE[c.role].soft, color: ROLE[c.role].ink }}><Icon n={c.icon} fill size={22} /></span><span class="col grow"><span style={{ fontSize: 12, fontWeight: 600, color: ROLE[c.role].ink }}>{c.kind}</span><span class="t16">{c.t}</span><span class="cap muted">{c.sub}</span></span></div>)}</>;
-  const fileInput = <input ref={file} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={(e) => onFile((e.target as HTMLInputElement).files?.[0])} />;
+  const fileInput = <><input ref={file} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={(e) => { onFile((e.target as HTMLInputElement).files?.[0]); (e.target as HTMLInputElement).value = ''; }} /><input ref={gal} type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => { onFile((e.target as HTMLInputElement).files?.[0]); (e.target as HTMLInputElement).value = ''; }} /></>;
 
   /* ---------- Sheet ---------- */
   if (scr === 'sheet') return (
@@ -137,13 +152,15 @@ export function Capture() {
           <span class="col" style={{ position: 'absolute', left: 14, bottom: 14, gap: 2 }}><span style={{ fontSize: 19, fontWeight: 700 }}>แตะเพื่อถ่าย</span><span style={{ fontSize: 13, color: '#C9C6BD' }}>อาหาร · สลิป · ใบเสร็จ · InBody · นาฬิกา</span></span>
           <span style={{ position: 'absolute', right: 14, bottom: 14, width: 60, height: 60, borderRadius: 999, boxShadow: 'inset 0 0 0 4px #fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ width: 46, height: 46, borderRadius: 999, background: '#fff' }} /></span>
         </button>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: -10 }}>
-          <button class="press" style={{ height: 64, borderRadius: 18, background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, fontSize: 17, fontWeight: 600 }} onClick={startVoice}><span class="medal" style={{ width: 36, height: 36, background: 'var(--ink)', color: '#fff' }}><Icon n="mic" fill size={22} /></span>พูด</button>
-          <button class="press" style={{ height: 64, borderRadius: 18, background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, fontSize: 17, fontWeight: 600 }} onClick={() => { setText(''); setScr('type'); setTimeout(() => input.current?.focus(), 60); }}><span class="medal" style={{ width: 36, height: 36, background: '#fff' }}><Icon n="keyboard" size={22} /></span>พิมพ์</button>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginTop: -10 }}>
+          <button class="press" style={{ height: 64, borderRadius: 18, background: 'var(--bg)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, fontSize: 14.5, fontWeight: 600 }} onClick={() => gal.current?.click()}><Icon n="photo_library" size={24} />แกลลอรี่</button>
+          <button class="press" style={{ height: 64, borderRadius: 18, background: 'var(--bg)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, fontSize: 14.5, fontWeight: 600 }} onClick={startVoice}><Icon n="mic" fill size={24} />พูด</button>
+          <button class="press" style={{ height: 64, borderRadius: 18, background: 'var(--bg)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, fontSize: 14.5, fontWeight: 600 }} onClick={() => { setText(''); setScr('type'); setTimeout(() => input.current?.focus(), 60); }}><Icon n="keyboard" size={24} />พิมพ์</button>
         </div>
         <div class="col" style={{ gap: 8 }}><span class="muted" style={{ fontSize: 13, fontWeight: 600 }}>แตะเดียวจบ</span>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 6 }}>{shortcuts.map((s) => <button class="press" style={{ minHeight: 84, borderRadius: 18, background: ROLE[s.role].soft, color: ROLE[s.role].ink, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px 4px' }} onClick={s.go}><Icon n={s.icon} fill size={26} /><span style={{ fontSize: 12.5, fontWeight: 600, lineHeight: 1.3, textAlign: 'center', color: 'var(--ink)' }}>{s.l}</span></button>)}</div>
         </div>
+        <button class="btn soft lg" style={{ fontSize: 16 }} onClick={() => { close(); setTimeout(() => openTaskEditor(), 60); }}><Icon n="event_available" />เพิ่มกิจกรรม / สิ่งที่ต้องทำ + ตั้งเตือน</button>
         <div class="col" style={{ gap: 2 }}><span class="muted" style={{ fontSize: 13, fontWeight: 600, paddingBottom: 4 }}>บันทึกบ่อย</span>
           {recents.map((r) => <button class="row" style={{ gap: 12, minHeight: 56, padding: '4px 4px 4px 0', borderRadius: 14, textAlign: 'left' }} onClick={r.go}><span class="medal" style={{ width: 36, height: 36, background: ROLE.food.soft, color: ROLE.food.ink }}><Icon n={r.icon} fill size={20} /></span><span class="col grow"><span style={{ fontSize: 15.5, fontWeight: 600 }}>{r.t}</span><span class="muted" style={{ fontSize: 12.5 }}>{r.sub}</span></span><span class="medal" style={{ background: 'var(--bg)' }}><Icon n="add" size={22} /></span></button>)}
         </div>
@@ -191,6 +208,14 @@ export function Capture() {
 
   /* ---------- Result (photo) ---------- */
   if (!p) return null;
+  const whenBlock = (
+    <div class="card row" style={{ padding: '10px 14px', gap: 10 }}><Icon n="schedule" size={22} color="var(--ink-2)" /><span class="col grow"><span class="cap muted" style={{ fontWeight: 600 }}>วันและเวลา</span>
+      <input type="datetime-local" value={when} max={nowLocal()} onInput={(e) => { const v = (e.target as HTMLInputElement).value; setWhen(v); const d = new Date(v); if (!isNaN(d.getTime())) setMeal(mealOf(d.getHours())); }} style={{ border: 'none', background: 'none', fontSize: 15.5, fontWeight: 600, padding: 0, outline: 'none' }} /></span></div>
+  );
+  const reestimate = async () => {
+    if (!imgData || !hint.trim()) return; setAiBusy(true);
+    try { const r = await analyzeImage(imgData, hint); setP(r); setPortion(1); toast('ประเมินใหม่แล้ว'); } catch (e) { toast(explain(e)); } finally { setAiBusy(false); }
+  };
   const meta = KIND[p.kind];
   const left = safeToSpend().left - (p.money && !p.money.income ? p.money.amount : 0);
   const ib = p.inbody, prevIb = inbodies().at(-1);
@@ -205,7 +230,9 @@ export function Capture() {
       {p.kind === 'other' && <div class="card" style={{ padding: 16 }}><span class="t16">{p.summary}</span><span class="cap muted" style={{ display: 'block', marginTop: 4 }}>ไม่แน่ใจว่าเป็นอะไร ลองถ่ายใหม่ให้ชัดขึ้น หรือพิมพ์แทน</span></div>}
       {p.food && <>
         {img && <img src={img} style={{ height: 150, width: '100%', objectFit: 'cover', borderRadius: 20 }} />}
-        <div class="card" style={{ padding: '6px 14px' }}>{p.food.items.map((f, i) => <div class="row" style={{ gap: 10, minHeight: 48, boxShadow: i ? 'inset 0 1px 0 var(--surface-2)' : 'none' }}><span class="t16 grow">{f.name}</span><span class="muted" style={{ fontSize: 14 }}>{f.qty}</span><span class="num" style={{ width: 72, textAlign: 'right', fontSize: 15, fontWeight: 600 }}>{Math.round(f.kcal * portion)}</span></div>)}</div>
+        <div class="card" style={{ padding: '6px 14px' }}>{p.food.items.map((f, i) => <div class="row" style={{ gap: 10, minHeight: 48, boxShadow: i ? 'inset 0 1px 0 var(--surface-2)' : 'none' }}><span class="t16 grow">{f.name}</span><span class="muted" style={{ fontSize: 14 }}>{f.qty}</span><input class="num" inputMode="numeric" aria-label={`แคลอรี่ ${f.name}`} value={Math.round(f.kcal * portion)} style={{ width: 72, height: 36, textAlign: 'right', fontSize: 15, fontWeight: 600, border: 'none', background: 'var(--bg)', borderRadius: 10, padding: '0 8px' }}
+            onChange={(e) => { const v = parseFloat((e.target as HTMLInputElement).value); if (!isNaN(v) && v >= 0) setP({ ...p, food: { items: p.food!.items.map((x, j) => (j === i ? { ...x, kcal: v / portion } : x)) } }); }} /></div>)}</div>
+        <span class="cap muted" style={{ marginTop: -6, padding: '0 4px' }}>แตะตัวเลขแคลอรี่เพื่อแก้เองได้</span>
         <div class="card" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div class="row" style={{ justifyContent: 'space-between', alignItems: 'flex-end' }}><span class="col"><span class="muted" style={{ fontSize: 13, fontWeight: 600 }}>ปริมาณ ×{portion}</span><span class="num" style={{ fontSize: 36, fontWeight: 600, lineHeight: 1.15 }}>{kcal}<span class="muted" style={{ fontSize: 16, fontWeight: 500 }}> kcal</span></span></span><span class="muted" style={{ fontSize: 13, paddingBottom: 6 }}>เหลือวันนี้ {Math.max(0, t.k - have.k - kcal).toLocaleString()}</span></div>
           <input type="range" min={0.5} max={2} step={0.25} value={portion} onInput={(e) => setPortion(+(e.target as HTMLInputElement).value)} style={{ width: '100%', height: 32, accentColor: 'var(--food)', margin: 0 }} aria-label="ปริมาณ" />
@@ -213,14 +240,21 @@ export function Capture() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8 }}>{([['โปรตีน', 'protein', 'p', '#FF9F1C', '#FFE9C7', '#9A5800'], ['คาร์บ', 'carb', 'c', '#22B455', '#D3F2DD', '#137A38'], ['ไขมัน', 'fat', 'f', '#7C5CFF', '#E6E0FF', '#5B3BE0']] as const).map(([l, key, tk, c, tr, ink]) => { const v = Math.round(p.food!.items.reduce((a, i) => a + i[key], 0) * portion); return <div style={{ background: 'var(--bg)', borderRadius: 14, padding: 10, display: 'flex', flexDirection: 'column', gap: 6 }}><span style={{ fontSize: 12.5, fontWeight: 600, color: ink }}>{l}</span><span class="num" style={{ fontSize: 18, fontWeight: 600 }}>{v} g</span><span class="bar" style={{ height: 6, background: tr }}><span style={{ width: `${Math.min(100, (v / t[tk]) * 100)}%`, background: c }} /></span></div>; })}</div>
         </div>
         <div class="col" style={{ gap: 8 }}><span class="muted" style={{ fontSize: 13, fontWeight: 600 }}>มื้อ</span><div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', background: 'var(--surface-2)', borderRadius: 999, padding: 4, gap: 2 }}>{MEALS.map((l, i) => <button style={{ height: 44, borderRadius: 999, background: i === meal ? '#fff' : 'transparent', color: i === meal ? 'var(--ink)' : 'var(--ink-2)', fontSize: 15, fontWeight: 600, boxShadow: i === meal ? 'var(--shadow-1)' : 'none' }} onClick={() => setMeal(i)}>{l}</button>)}</div></div>
+        {whenBlock}
+        {imgData && <div class="card" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <span class="t16">AI เข้าใจผิดไหม</span>
+          <span class="cap muted">ปรับปริมาณด้วยแถบด้านบนไม่ต้องเรียก AI ใหม่ · ถ้าอาหารที่ AI เดาผิดชนิด บอกสั้นๆ แล้วให้ประเมินใหม่</span>
+          <div class="row" style={{ gap: 8 }}><input class="field" value={hint} onInput={(e) => setHint((e.target as HTMLInputElement).value)} placeholder="เช่น นี่คือข้าวมันไก่ ไม่ใช่ข้าวหมูแดง" /><button class="btn dark" style={{ height: 52 }} disabled={aiBusy || !hint.trim()} onClick={reestimate}>{aiBusy ? <span class="spin" style={{ width: 18, height: 18, borderWidth: 2 }} /> : 'ประเมินใหม่'}</button></div>
+        </div>}
       </>}
       {p.money && (p.kind === 'slip' || p.kind === 'receipt' || !p.food) && <>
         <div class="card" style={{ borderRadius: 22, padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div class="row" style={{ gap: 14 }}>{img && <img src={img} style={{ width: 56, height: 72, objectFit: 'cover', borderRadius: 12, flex: 'none' }} />}<span class="col" style={{ gap: 2, minWidth: 0 }}><span class="num" style={{ fontSize: 40, fontWeight: 600, lineHeight: 1.1 }}>{p.money.amount.toLocaleString()}<span style={{ fontSize: 20, fontWeight: 500 }}> ฿</span></span><span class="t16">{p.money.merchant}</span><span class="cap muted">{p.money.account} · {p.money.income ? 'เงินเข้า' : 'จ่ายออก'}</span></span></div>
           {!p.money.income && <div class="row" style={{ gap: 8, background: 'var(--money-soft)', borderRadius: 14, padding: '10px 12px' }}><Icon n="account_balance_wallet" size={20} color="var(--money-ink)" /><span style={{ fontSize: 14 }}>งบวันนี้เหลือ <b style={{ fontWeight: 600 }}>{Math.round(left).toLocaleString()} ฿</b> หลังรายการนี้</span></div>}
         </div>
+        {whenBlock}
         <div class="col" style={{ gap: 8 }}><span class="muted" style={{ fontSize: 13, fontWeight: 600 }}>หมวด · AI เดาว่า {p.money.category} · แตะเพื่อเปลี่ยน</span>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 6 }}>{live(categories.value).filter((c) => !!c.income === p.money!.income).map((c) => { const on = (cat ?? p.money!.category) === c.name; return <button class="press" style={{ height: 56, borderRadius: 16, background: on ? c.ink : c.soft, color: on ? '#fff' : c.ink, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 15, fontWeight: 600 }} onClick={() => setCat(c.name)}><Icon n={c.icon} fill size={20} />{c.name}</button>; })}</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 6 }}>{live(categories.value).map((c) => { const on = (cat ?? p.money!.category) === c.name; return <button class="press" style={{ height: 56, borderRadius: 16, background: on ? c.ink : c.soft, color: on ? '#fff' : c.ink, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 15, fontWeight: 600 }} onClick={() => setCat(c.name)}><Icon n={c.icon} fill size={20} />{c.name}</button>; })}<button class="press" style={{ height: 56, borderRadius: 16, background: 'var(--surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 15, fontWeight: 600 }} onClick={() => openCategoryEditor(null, (n) => setCat(n))}><Icon n="add" size={20} />หมวดใหม่</button></div>
         </div>
       </>}
       {ib && <>
@@ -243,7 +277,7 @@ export function Capture() {
     </div>
     <div style={{ padding: '8px 16px calc(24px + env(safe-area-inset-bottom))' }}>
       {p.kind === 'other' ? <button class="btn soft lg block" onClick={() => { setScr('type'); setText(''); }}>พิมพ์แทน</button>
-        : <button class="btn primary lg block" onClick={() => done(commit(p, portion, meal, cat))}><Icon n="check" />{saveLabel}</button>}
+        : <button class="btn primary lg block" onClick={() => done(commit(p, portion, meal, cat, atDate()))}><Icon n="check" />{saveLabel}</button>}
     </div>
   </>);
 }

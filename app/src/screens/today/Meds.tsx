@@ -5,6 +5,7 @@ import { openSheet, closeSheet, toast } from '../../store/ui';
 import { add, remove, update, live } from '../../store/collection';
 import { addDays, thDate } from '../../domain/time';
 import { appNow } from '../../domain/plan';
+import { useBack } from '../../ui/back';
 import { meds, medsFor, isTaken, toggleMed, isEvenDay, medStreak, type Med, type Slot, type Sched } from '../../domain/meds';
 
 const SCHED: Record<Sched, string> = { daily: 'ทุกวัน', alt: 'วันเว้นวัน', days: 'บางวัน' };
@@ -15,6 +16,7 @@ export function Meds({ slot: slot0 }: { slot?: Slot }) {
   const [day, setDay] = useState<0 | 1>(0);
   const [edit, setEdit] = useState(false);
   const [bursts, setBursts] = useState<Record<string, number>>({});
+  useBack(() => { if (edit) { setEdit(false); return true; } return false; }, edit);
   const date = day ? addDays(appNow(), 1) : appNow(), even = isEvenDay(date);
   const items = medsFor(slot, date), all = live(meds.value).filter((m) => m.slot === slot);
   const doneN = items.filter((m) => isTaken(date, m.id)).length, allDone = items.length > 0 && doneN === items.length;
@@ -28,10 +30,10 @@ export function Meds({ slot: slot0 }: { slot?: Slot }) {
   return (
     <div class="screen sub" style={{ gap: 16 }}>
       <TopBar title="ยาและผิว" onBack={back} right={<EditToggle on={edit} onClick={() => setEdit(!edit)} />} />
-      <div style={{ position: 'relative', display: 'grid', gridTemplateColumns: '1fr 1fr', background: 'var(--surface-2)', borderRadius: 999, padding: 4, height: 56 }}>
-        <span style={{ position: 'absolute', top: 4, bottom: 4, left: 4, width: 'calc(50% - 4px)', borderRadius: 999, background: '#fff', boxShadow: 'var(--shadow-1)', transform: `translateX(${slot === 'night' ? '100%' : '0%'})`, transition: 'transform 320ms var(--ease-spring)' }} />
-        {([['morning', 'เช้า', 'wb_sunny'], ['night', 'ก่อนนอน', 'bedtime']] as const).map(([k, t, ic]) => (
-          <button style={{ position: 'relative', borderRadius: 999, fontSize: 15, fontWeight: 600, color: slot === k ? 'var(--ink)' : 'var(--ink-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }} onClick={() => setSlot(k)}><Icon n={ic} fill size={20} />{t}</button>
+      <div style={{ position: 'relative', display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', background: 'var(--surface-2)', borderRadius: 999, padding: 4, height: 56 }}>
+        <span style={{ position: 'absolute', top: 4, bottom: 4, left: 4, width: 'calc(33.333% - 2.7px)', borderRadius: 999, background: '#fff', boxShadow: 'var(--shadow-1)', transform: `translateX(${slot === 'morning' ? '0%' : slot === 'night' ? '100%' : '200%'})`, transition: 'transform 320ms var(--ease-spring)' }} />
+        {([['morning', 'เช้า', 'wb_sunny'], ['night', 'ก่อนนอน', 'bedtime'], ['timed', 'ตามเวลา', 'alarm']] as const).map(([k, t, ic]) => (
+          <button style={{ position: 'relative', borderRadius: 999, fontSize: 14.5, fontWeight: 600, color: slot === k ? 'var(--ink)' : 'var(--ink-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }} onClick={() => setSlot(k)}><Icon n={ic} fill size={18} />{t}</button>
         ))}
       </div>
 
@@ -65,6 +67,7 @@ export function Meds({ slot: slot0 }: { slot?: Slot }) {
                 <button class="col grow" style={{ textAlign: 'left', gap: 2 }} onClick={() => edit && openMedEdit(m)}>
                   <span class="t16" style={{ color: checked && !edit ? 'var(--ink-2)' : 'var(--ink)', textDecoration: checked && !edit ? 'line-through' : 'none', textDecorationColor: 'var(--ink-3)' }}>{label}</span>
                   {m.sub && <span class="cap muted">{m.sub}</span>}
+                  {m.slot === 'timed' && m.time && <span class="chip" style={{ alignSelf: 'flex-start', height: 24, padding: '0 8px', fontSize: 12 }}><Icon n="alarm" size={14} />{m.time}</span>}
                   {!edit && m.alt && <span style={{ display: 'inline-flex', alignSelf: 'flex-start', alignItems: 'center', gap: 4, background: 'var(--info-tint)', color: 'var(--info)', fontSize: 12, fontWeight: 600, padding: '3px 8px', borderRadius: 999, marginTop: 2 }}><Icon n="swap_horiz" size={14} />{even ? 'วันคู่' : 'วันคี่'} · พรุ่งนี้ {(m as ReturnType<typeof medsFor>[number]).otherLabel?.split(' ')[0]}</span>}
                 </button>
                 {edit && <button class="chip" style={{ height: 36 }} onClick={() => update(meds, m.id, { sched: m.sched === 'daily' ? 'alt' : m.sched === 'alt' ? 'days' : 'daily', days: m.days ?? [1, 3, 5] })}>{m.sched === 'days' ? (m.days ?? []).map((d) => DOW[d]).join(' ') : SCHED[m.sched]}</button>}
@@ -87,21 +90,24 @@ function MedEdit({ m, slot }: { m: Med | null; slot: Slot }) {
   const [name, setName] = useState(m?.name ?? ''), [sub, setSub] = useState(m?.sub ?? '');
   const [altOn, setAltOn] = useState(!!m?.alt), [a1, setA1] = useState(m?.alt?.[0] ?? ''), [a2, setA2] = useState(m?.alt?.[1] ?? '');
   const [sched, setSched] = useState<Sched>(m?.sched ?? 'daily'), [days, setDays] = useState<number[]>(m?.days ?? [1, 3, 5]);
+  const [sl, setSl] = useState<Slot>(m?.slot ?? slot), [time, setTime] = useState(m?.time ?? '12:30');
   const save = () => {
-    const data = { name: altOn ? a1 || name : name, sub, sched, days, alt: altOn && a1 && a2 ? ([a1, a2] as [string, string]) : undefined };
+    const data = { slot: sl, time: sl === 'timed' ? time : undefined, name: altOn ? a1 || name : name, sub, sched, days, alt: altOn && a1 && a2 ? ([a1, a2] as [string, string]) : undefined };
     if (!data.name.trim()) return toast('ใส่ชื่อก่อน');
-    if (m) update(meds, m.id, data); else add(meds, { slot, ...data });
+    if (m) update(meds, m.id, data); else add(meds, data);
     closeSheet(); toast('บันทึกแล้ว');
   };
   return (
     <div class="col" style={{ gap: 12 }}>
-      {!altOn && <label><span class="label">ชื่อ</span><input class="field" value={name} onInput={(e) => setName((e.target as HTMLInputElement).value)} placeholder="เช่น กันแดด SPF50" /></label>}
+      {!altOn && <label><span class="label">ชื่อ</span><input class="field" value={name} onInput={(e) => setName((e.target as HTMLInputElement).value)} placeholder="เช่น กันแดด SPF50, วิตามิน C" /></label>}
       <label class="row" style={{ gap: 10 }}><input type="checkbox" checked={altOn} onChange={(e) => setAltOn((e.target as HTMLInputElement).checked)} style={{ width: 22, height: 22 }} /><span class="t16">สลับ 2 ตัว วันคู่ / วันคี่</span></label>
       {altOn && <div class="row" style={{ gap: 8 }}><input class="field" value={a1} onInput={(e) => setA1((e.target as HTMLInputElement).value)} placeholder="วันคู่" /><input class="field" value={a2} onInput={(e) => setA2((e.target as HTMLInputElement).value)} placeholder="วันคี่" /></div>}
       <label><span class="label">วิธีใช้ (ไม่บังคับ)</span><input class="field" value={sub} onInput={(e) => setSub((e.target as HTMLInputElement).value)} placeholder="เช่น หลังอาหารเช้า" /></label>
-      <div><span class="label">รอบ</span><div class="row" style={{ gap: 6 }}>{(Object.keys(SCHED) as Sched[]).map((s) => <button class={`chip${sched === s ? ' on' : ''}`} style={{ height: 40 }} onClick={() => setSched(s)}>{SCHED[s]}</button>)}</div></div>
+      <div><span class="label">ตอนไหน</span><div class="row" style={{ gap: 6 }}>{([['morning', 'ตอนเช้า'], ['night', 'ก่อนนอน'], ['timed', 'ตั้งเวลาเอง']] as const).map(([s2, l]) => <button class={`chip${sl === s2 ? ' on' : ''}`} style={{ height: 40 }} onClick={() => setSl(s2)}>{l}</button>)}</div></div>
+      {sl === 'timed' && <label><span class="label">เวลา (แจ้งเตือนตามเวลานี้)</span><input class="field" type="time" value={time} onInput={(e) => setTime((e.target as HTMLInputElement).value)} /></label>}
+      <div><span class="label">วันไหนบ้าง</span><div class="row" style={{ gap: 6, flexWrap: 'wrap' }}>{(Object.keys(SCHED) as Sched[]).map((s2) => <button class={`chip${sched === s2 ? ' on' : ''}`} style={{ height: 40 }} onClick={() => setSched(s2)}>{SCHED[s2]}</button>)}</div></div>
       {sched === 'days' && <div class="row" style={{ gap: 4 }}>{DOW.map((d, i) => <button class={`chip${days.includes(i) ? ' on' : ''}`} style={{ height: 40, flex: 1, justifyContent: 'center', padding: 0 }} onClick={() => setDays(days.includes(i) ? days.filter((x) => x !== i) : [...days, i])}>{d}</button>)}</div>}
-      <button class="btn primary lg block" onClick={save}>บันทึก</button>
+      <div class="row" style={{ gap: 8 }}>{m && <button class="btn soft lg" style={{ color: 'var(--error)' }} onClick={() => { remove(meds, m.id, `ลบ ${m.name}`); closeSheet(); }} aria-label="ลบ"><Icon n="delete" size={22} /></button>}<button class="btn primary lg grow" onClick={save}>บันทึก</button></div>
     </div>
   );
 }

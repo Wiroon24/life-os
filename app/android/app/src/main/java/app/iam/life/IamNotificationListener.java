@@ -32,7 +32,7 @@ public class IamNotificationListener extends NotificationListenerService {
 
             if (sms) {
                 if (!NotifStore.senderAllowed(this, title == null ? null : title.toString())) return;
-            } else if (!NotifStore.labelAllowed(this, label)) {
+            } else if (!NotifStore.pkgAllowed(this, pkg, label)) {
                 return;
             }
 
@@ -50,6 +50,8 @@ public class IamNotificationListener extends NotificationListenerService {
             return String.valueOf(pm.getApplicationLabel(ai));
         } catch (Exception e) { return pkg; }
     }
+
+    static boolean isMessagingPkg(String pkg) { return isMessaging(pkg); }
 
     private static boolean isMessaging(String pkg) {
         for (String p : MESSAGING_PKGS) if (p.equals(pkg)) return true;

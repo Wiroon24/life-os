@@ -33,9 +33,9 @@ export function checkReminders() {
   };
   for (const b of blocksFor(d)) {
     if (statusOf(k, b, now)) continue;
-    const topic: Topic = b.kind === 'workout' ? 'workout' : b.kind?.startsWith('meds') ? 'meds' : b.kind === 'bill' ? 'bills' : b.kind === 'checkin' ? 'checkin' : 'blocks';
-    if (!n.on[topic]) continue;
-    const lead = topic === 'workout' ? 15 : 0;
+    const topic: Topic = b.kind === 'workout' ? 'workout' : b.kind?.startsWith('med') ? 'meds' : b.kind === 'bill' ? 'bills' : b.kind === 'checkin' ? 'checkin' : 'blocks';
+    if (!n.on[topic] || b.mute) continue;
+    const lead = b.lead ?? (topic === 'workout' ? 15 : 0);
     if (now >= b.start - lead && now <= b.start + 5) fire(b.id, b.title, b.sub, topic === 'meds');
     // Escalation (strict): re-nag at +10/+20/+30 min for workout & meds until done.
     if (n.level === 1 && (topic === 'workout' || topic === 'meds')) for (const [i, gap] of [10, 20, 30].entries()) {

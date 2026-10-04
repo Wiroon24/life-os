@@ -34,6 +34,24 @@ final class NotifStore {
         sp(c).edit().putString("labels", labels.toString()).putString("senders", senders.toString()).apply();
     }
 
+    /** User-chosen package allow-list; null until the user has chosen (then the label defaults apply). */
+    static JSONArray pkgs(Context c) {
+        String raw = sp(c).getString("pkgs", null);
+        try { if (raw != null) return new JSONArray(raw); } catch (JSONException ignored) { }
+        return null;
+    }
+
+    static void setPkgs(Context c, JSONArray pkgs) { sp(c).edit().putString("pkgs", pkgs.toString()).apply(); }
+
+    static void setSenders(Context c, JSONArray senders) { sp(c).edit().putString("senders", senders.toString()).apply(); }
+
+    static boolean pkgAllowed(Context c, String pkg, String label) {
+        JSONArray p = pkgs(c);
+        if (p == null) return labelAllowed(c, label);
+        for (int i = 0; i < p.length(); i++) if (pkg.equals(p.optString(i))) return true;
+        return false;
+    }
+
     static boolean labelAllowed(Context c, String label) {
         if (label == null) return false;
         String l = label.toLowerCase();

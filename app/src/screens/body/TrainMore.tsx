@@ -5,6 +5,7 @@ import { toast, showUndo } from '../../store/ui';
 import { alertNow } from '../../store/notify';
 import { dayKey, DOW_SHORT, parseKey } from '../../domain/time';
 import { appNow, blocksFor, setStatus } from '../../domain/plan';
+import { ExImg } from './ExerciseInfo';
 import { MOB, LIB, EQ, program, weekIds, dayById, exFromLib, exLogFrom, active, warmDone, history, kindIcon } from '../../domain/training';
 
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.max(0, s) % 60).padStart(2, '0')}`;
@@ -25,11 +26,7 @@ export function Mobility({ kind = 'warm' }: { kind?: 'warm' | 'stretch' }) {
       <div class="row" style={{ gap: 4, padding: '8px 8px 0' }}><button class="btn icon" onClick={back} aria-label="ปิด"><Icon n="close" /></button><span class="grow" style={{ fontSize: 15, fontWeight: 600, textAlign: 'center' }}>{d.title}</span><span class="num muted" style={{ width: 48, fontSize: 14, fontWeight: 600 }}>{i + 1}/{d.list.length}</span></div>
       <div class="row" style={{ gap: 4, padding: '6px 16px 0' }}>{d.list.map((_, j) => <span style={{ flex: 1, height: 4, borderRadius: 999, background: j < i ? 'var(--recovery)' : j === i ? '#B8A8FF' : 'var(--surface-3)' }} />)}</div>
       <div style={{ flex: 1, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <div style={{ position: 'relative', height: 260, borderRadius: 24, background: 'var(--recovery-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--recovery-ink)' }}>
-          <Icon n="self_improvement" fill size={96} />
-          <span style={{ position: 'absolute', top: 12, left: 12, background: '#fff', color: 'var(--recovery-ink)', padding: '5px 10px', borderRadius: 999, fontSize: 13, fontWeight: 600 }}>{m[3]}</span>
-          <a href={`https://www.youtube.com/results?search_query=${encodeURIComponent(m[0] + ' ท่า')}`} target="_blank" rel="noreferrer" style={{ position: 'absolute', bottom: 12, right: 12, background: '#fff', color: 'var(--ink)', padding: '6px 12px', borderRadius: 999, fontSize: 13, fontWeight: 600, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}><Icon n="play_circle" size={18} />ดูวิดีโอ</a>
-        </div>
+        <div class="col" style={{ gap: 8 }}><ExImg name={m[0]} h={240} /><div class="row" style={{ justifyContent: 'space-between' }}><span style={{ background: 'var(--recovery-soft)', color: 'var(--recovery-ink)', padding: '5px 10px', borderRadius: 999, fontSize: 13, fontWeight: 600 }}>{m[3]}</span><button class="small" style={{ fontWeight: 600, textDecoration: 'underline' }} onClick={() => push('exercise', { name: m[0] })}>ทำไม · ทำอย่างไร</button></div></div>
         <div class="row" style={{ gap: 14 }}>
           <span class="col grow" style={{ gap: 4 }}><span style={{ fontSize: 26, fontWeight: 700, lineHeight: 1.25 }}>{m[0]}</span><span class="muted" style={{ fontSize: 15, lineHeight: 1.5 }}>{m[1]}</span></span>
           <Ring value={left / m[2]} size={96} stroke={10} color="#7C5CFF" track="#E0D9FF"><span class="num" style={{ fontSize: 24, fontWeight: 700 }}>{mmss(left)}</span></Ring>
@@ -99,7 +96,7 @@ export function Library({ ctx, dayId }: { ctx: 'log' | 'program'; dayId?: string
       <div class="card row" style={{ borderRadius: 999, height: 52, padding: '0 16px', gap: 8 }}><Icon n="search" size={22} color="var(--ink-2)" /><input value={q} onInput={(e) => setQ((e.target as HTMLInputElement).value)} placeholder="ค้นหาท่า" style={{ flex: 1, minWidth: 0, border: 'none', outline: 'none', background: 'none', fontSize: 16 }} /></div>
       <div class="no-scrollbar" style={{ display: 'flex', gap: 6, overflowX: 'auto' }}>{EQ.map((l) => { const on = eqf.includes(l); return <button style={{ height: 40, flex: 'none', padding: '0 14px', borderRadius: 999, background: on ? 'var(--ink)' : '#fff', color: on ? '#fff' : 'var(--ink)', fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap' }} onClick={() => setEqf(on ? eqf.filter((x) => x !== l) : [...eqf, l])}>{l}</button>; })}</div>
       <div class="card" style={{ padding: '6px 6px 6px 14px' }}>
-        {list.map((l, i) => <div class="row" style={{ gap: 10, minHeight: 60, boxShadow: i ? 'inset 0 1px 0 var(--surface-2)' : 'none' }}><span class="col grow"><span style={{ fontSize: 15.5, fontWeight: 600 }}>{l[0]}</span><span class="muted" style={{ fontSize: 12.5 }}>{l[2]} · {l[1].join(' + ')}</span></span><button class="btn icon" style={{ background: 'var(--bg)' }} onClick={() => addOne(l[0])} aria-label="เพิ่ม"><Icon n="add" size={22} /></button></div>)}
+        {list.map((l, i) => <div class="row" style={{ gap: 10, minHeight: 60, boxShadow: i ? 'inset 0 1px 0 var(--surface-2)' : 'none' }}><button class="col grow" style={{ textAlign: 'left' }} onClick={() => push('exercise', { name: l[0] })}><span style={{ fontSize: 15.5, fontWeight: 600 }}>{l[0]}</span><span class="muted" style={{ fontSize: 12.5 }}>{l[2]} · {l[1].join(' + ')}</span></button><button class="btn icon" style={{ background: 'var(--bg)' }} onClick={() => addOne(l[0])} aria-label="เพิ่ม"><Icon n="add" size={22} /></button></div>)}
         {list.length === 0 && <div class="small muted" style={{ padding: '16px 0' }}>ไม่เจอท่านี้ ลองลบตัวกรองอุปกรณ์</div>}
       </div>
     </div>
