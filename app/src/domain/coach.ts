@@ -9,6 +9,7 @@ import { addTxn, confirmTxns, safeToSpend, txns, categories } from './money';
 import { planFor, swapDays, weekIds, dayById, workouts } from './training';
 import { latestW, avg7, rate, logWeight, weekSummary, proposals, checkins } from './body';
 import { recovery, nightFor, hoursOf } from './sleep';
+import { EXTRA_TOOLS, runExtra, undoSnap } from './coachTools';
 
 export type Card =
   | { type: 'log'; ids: string[]; food: string; k: number; p: number }
@@ -71,7 +72,9 @@ function systemPrompt() {
 ประมาณแคลอรี่และมาโครอาหารไทยอย่างสมเหตุสมผล
 เรื่องเงินและหนี้: ให้ตัวเลขและทางเลือก ไม่ฟันธงแทนผู้ใช้ เพราะคุณไม่ใช่ที่ปรึกษาการเงินที่มีใบอนุญาต
 เรื่องสุขภาพ: ถ้ามีอาการเจ็บผิดปกติ แนะนำให้พบแพทย์/นักกายภาพ
-ห้ามเขียนค่าที่ผู้ใช้ตั้งเองทับ ถ้าจะเสนอให้เสนอเป็นข้อเสนอ`;
+ห้ามเขียนค่าที่ผู้ใช้ตั้งเองทับ ถ้าจะเสนอให้เสนอเป็นข้อเสนอ
+วิเคราะห์และความคืบหน้า: เมื่อผู้ใช้ถามความคืบหน้า ขอให้วิเคราะห์ผลการใช้งาน หรือขอคำแนะนำ ให้เรียก get_report (topic ที่เกี่ยวข้อง หรือ overview) ก่อนเสมอ ห้ามเดาตัวเลข อ้างตัวเลขจริง ชี้ว่าอะไรดี อะไรพลาด เพราะอะไร แล้วปิดด้วยข้อเสนอที่ทำได้เลย 1–3 ข้อ
+แก้โปรแกรมซ้อมและเป้าอาหาร: ใช้ edit_program / set_nutrition_targets เฉพาะเมื่อผู้ใช้สั่งชัดเจนหรือตอบรับข้อเสนอของคุณแล้ว ถ้าเป็นแค่ความเห็นของคุณ ให้เสนอก่อนแล้วถามว่าจะให้แก้ไหม ก่อนแก้โปรแกรมเรียก get_program ดูรหัสวันและคลังท่า ระวังประวัติเจ็บเข่า/ข้อเท้า/น่อง ไม่ตัดท่า compound ของผู้ใช้ เมื่อแก้แล้วบอกสั้นๆ ว่าเปลี่ยนอะไรจากอะไร (ผู้ใช้กดย้อนกลับได้)`;
 }
 
 const TOOLS: Anthropic.Beta.BetaTool[] = [
@@ -86,6 +89,7 @@ const TOOLS: Anthropic.Beta.BetaTool[] = [
 ];
 
 function runTool(name: string, input: Record<string, unknown>, cards: Card[]): string {
+  const extra = runExtra(name, input, cards as never); if (extra != null) return extra;
   const d = appNow(), k = dayKey(d);
   const findBlk = (q: string) => blocksFor(d).find((b) => b.title.toLowerCase().includes(String(q).toLowerCase()));
   switch (name) {
@@ -138,6 +142,7 @@ function runTool(name: string, input: Record<string, unknown>, cards: Card[]): s
 export function undoCard(c: Card) {
   if (c.type === 'log') unlogFood(c.ids);
   if (c.type === 'swap') swapDays(appNow(), c.a, c.b);
+  if (c.type === 'done' && (c.undo?.startsWith('prog:') || c.undo?.startsWith('tgt:'))) undoSnap(c.undo);
   if (c.type === 'done' && c.undo?.startsWith('txn:')) { const id = c.undo.slice(4); txns.value = txns.value.filter((t) => t.id !== id); }
 }
 
@@ -207,10 +212,10 @@ export async function send(text: string) {
     const messages: Anthropic.Beta.BetaMessageParam[] = [...history, { role: 'user', content: [{ type: 'text', text: `<context>\nสิ่งที่จำได้:\n${mem}\n\n${snapshot()}\n</context>` }, { type: 'text', text: t }] }];
     const cards: Card[] = [];
     let final = '';
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 8; i++) {
       const res = await client().beta.messages.create({
         model: model(), max_tokens: 16000, ...FALLBACK, output_config: { effort: 'medium' },
-        system: [{ type: 'text', text: systemPrompt(), cache_control: { type: 'ephemeral' } }], tools: TOOLS, messages,
+        system: [{ type: 'text', text: systemPrompt(), cache_control: { type: 'ephemeral' } }], tools: [...TOOLS, ...EXTRA_TOOLS], messages,
       });
       final = res.content.filter((b): b is Anthropic.Beta.BetaTextBlock => b.type === 'text').map((b) => b.text).join('\n').trim() || final;
       if (res.stop_reason === 'refusal') { final = final || 'เรื่องนี้ช่วยไม่ได้ ลองถามแบบอื่นนะ'; break; }
