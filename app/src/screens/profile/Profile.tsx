@@ -13,7 +13,7 @@ import { latestW } from '../../domain/body';
 import { notif, TOPICS, tune } from '../../domain/reminders';
 import { ensurePermission } from '../../store/notify';
 import { fromMin, thDate, dayKey } from '../../domain/time';
-import { healthState, healthDaily, healthAvailable, connectHealth, syncHealth, openHealthSettings, lastDays } from '../../health';
+import { healthState, healthDaily, healthAvailable, connectHealth, refreshHealth, syncHealth, openHealthSettings, lastDays } from '../../health';
 import type { Signal } from '@preact/signals';
 import { Stepper } from '../sheets';
 import { isNative, captureStatus, openListenerSettings, listApps, setCapturePackages, setCaptureSenders } from '../../native';
@@ -156,7 +156,7 @@ export function Profile() {
 
 function HealthSection() {
   const h = healthState.value, [avail, setAvail] = useState<{ ok: boolean; why: string } | null>(null), [busy, setBusy] = useState(false);
-  useEffect(() => { void healthAvailable().then(setAvail); }, []);
+  useEffect(() => { void healthAvailable().then(setAvail); void refreshHealth(); }, []);
   const today = healthDaily.value[dayKey()] ?? {}, yday = lastDays(2)[1], y = healthDaily.value[yday] ?? {};
   const go = async (f: () => Promise<unknown>) => { setBusy(true); try { await f(); } finally { setBusy(false); } };
   return <>
@@ -183,10 +183,6 @@ function HealthSection() {
 function ConnScreen() {
   const st = captureStatus.value;
   return <>
-    <div class="card" style={{ borderRadius: 22, padding: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <div class="row"><span class="medal" style={{ borderRadius: 14, background: 'var(--success-tint)', color: 'var(--workout-ink)' }}><Icon n="favorite" fill /></span><span class="col grow"><span class="t16">Health Connect</span><span class="muted" style={{ fontSize: 12.5, fontWeight: 600 }}>ยังไม่เชื่อม · กำลังทำ</span></span></div>
-      <span class="small muted">จะดึงการนอน ก้าวเดิน น้ำหนัก และหัวใจจาก Zepp/Amazfit ผ่าน Health Connect ตอนนี้ใช้ปุ่ม “นอนแล้ว” และชั่งน้ำหนักในแอปแทน</span>
-    </div>
     <HealthSection />
     <span class="muted" style={{ fontSize: 13, fontWeight: 600, padding: '0 4px' }}>อ่านแจ้งเตือนธนาคาร</span>
     {!isNative ? <div class="card" style={{ padding: 16 }}><span class="small muted">ใช้ได้เฉพาะแอป Android ที่ติดตั้งแล้ว ตอนนี้วางข้อความแจ้งเตือนในหน้าเงินแทน (เงิน → เพิ่ม → วางแจ้งเตือนธนาคาร)</span></div> : <>

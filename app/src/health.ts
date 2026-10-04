@@ -21,11 +21,24 @@ export async function healthAvailable() {
   try { const r = await (await plugin()).isAvailable(); return { ok: r.available, why: r.reason ?? 'เครื่องนี้ยังไม่มี Health Connect' }; } catch (e) { return { ok: false, why: String(e) }; }
 }
 
-/** Opens the Health Connect permission sheet. */
+/** Is anything already allowed? (The permission screen can outlive the app process, so never rely on the request promise alone.) */
+export async function refreshHealth() {
+  if (!isNative) return false;
+  try {
+    const r = await (await plugin()).checkAuthorization({ read: [...READ] as never });
+    const ok = r.readAuthorized.length > 0;
+    if (ok !== healthState.value.on) healthState.value = { ...healthState.value, on: ok, msg: ok ? `อนุญาตแล้ว ${r.readAuthorized.length} ประเภท` : healthState.value.msg };
+    return ok;
+  } catch { return false; }
+}
+
+/** Opens the Health Connect permission sheet (skipped when permission is already granted). */
 export async function connectHealth() {
   const a = await healthAvailable(); if (!a.ok) { healthState.value = { ...healthState.value, msg: a.why }; return false; }
   const h = await plugin();
+  healthState.value = { ...healthState.value, msg: 'กำลังขอสิทธิ์…' };
   try {
+    if (await refreshHealth()) { await syncHealth(true); return true; }
     const r = await h.requestAuthorization({ read: [...READ] as never });
     const ok = r.readAuthorized.length > 0;
     healthState.value = { ...healthState.value, on: ok, msg: ok ? `อนุญาตแล้ว ${r.readAuthorized.length} ประเภท${r.readDenied.length ? ` · ปฏิเสธ ${r.readDenied.join(', ')}` : ''}` : 'ยังไม่ได้อนุญาต' };
@@ -93,7 +106,7 @@ export async function syncHealth(force = false, days = 14) {
 
 export function initHealth() {
   if (!isNative) return;
-  void syncHealth();
-  void App.addListener('appStateChange', (s) => { if (s.isActive) void syncHealth(); });
+  void refreshHealth().then(() => syncHealth());
+  void App.addListener('appStateChange', (s) => { if (s.isActive) void refreshHealth().then(() => syncHealth()); });
 }
 export const lastDays = (n: number) => Array.from({ length: n }, (_, i) => dayKey(addDays(new Date(), -i)));
