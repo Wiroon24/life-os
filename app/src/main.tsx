@@ -10,10 +10,12 @@ import { trimRaw } from './domain/money';
 import { App } from './app';
 import { checkReminders } from './domain/reminders';
 import { initNative } from './native';
+import { initHealth } from './health';
 
 autoWake();
 trimRaw();
 initNative().catch(() => {});
+initHealth();
 if ('serviceWorker' in navigator && import.meta.env.PROD) navigator.serviceWorker.register('/sw.js').catch(() => {});
 document.addEventListener('visibilitychange', () => { if (!document.hidden) autoWake();
 if ('serviceWorker' in navigator && import.meta.env.PROD) navigator.serviceWorker.register('/sw.js').catch(() => {}); });

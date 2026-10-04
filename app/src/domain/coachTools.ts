@@ -9,6 +9,7 @@ import { sleepLog, hoursOf } from './sleep';
 import { medLog, meds } from './meds';
 import { cycle, safeToSpend, categories, catSpend, pending, debts, debtPlan, simulate, owedOf, monthLabel } from './money';
 import { live } from '../store/collection';
+import { healthDaily } from '../health';
 
 /** Snapshots so a coach edit can be undone from its card (kept small). */
 const snaps = persisted<Record<string, string>>('coachUndo', {});
@@ -53,6 +54,8 @@ function report(topic: Topic, n: number): string {
   if (T('sleep')) {
     const hs = ds.map((d) => hoursOf(sleepLog.value[dayKey(d)])).filter((x): x is number => x != null);
     out.push(`## นอน: บันทึก ${hs.length}/${n} คืน${hs.length ? ` · เฉลี่ย ${r1(avg(hs)!)} ชม. · ต่ำกว่า 6 ชม. ${hs.filter((h) => h < 6).length} คืน` : ''}`);
+    const hd = keys.map((k) => healthDaily.value[k]).filter(Boolean), st = hd.map((x) => x.steps).filter((x): x is number => x != null), rh = hd.map((x) => x.rhr).filter((x): x is number => x != null);
+    if (st.length || rh.length) out.push(`- จากนาฬิกา: ก้าวเฉลี่ย ${st.length ? r0(avg(st)!).toLocaleString() : '-'} /วัน · ชีพจรขณะพักเฉลี่ย ${rh.length ? r0(avg(rh)!) : '-'} bpm${rh.length >= 4 ? ` (ต้นช่วง ${r0(avg(rh.slice(0, Math.ceil(rh.length / 2)))!)} → ปลาย ${r0(avg(rh.slice(Math.floor(rh.length / 2)))!)})` : ''}`);
   }
   if (T('adherence')) {
     const past = ds.filter((d) => dayKey(d) < dayKey(appNow())), by: Record<string, [number, number]> = {};

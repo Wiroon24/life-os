@@ -4,4 +4,5 @@
     <string name="title_activity_main">Iam</string>
     <string name="package_name">app.iam.life</string>
     <string name="custom_url_scheme">app.iam.life</string>
+    <string name="health_connect_privacy_policy_url">https://lift-os-53d36.web.app/privacy.html</string>
 </resources>

@@ -133,7 +133,7 @@ export function finishWorkout(rpe: number) {
   if (blk) setStatus(w.date, blk.id, 'done');
 }
 
-export const doneOn = (d: Date) => workouts.value.find((w) => w.date === dayKey(d));
+export const doneOn = (d: Date) => workouts.value.find((w) => w.date === dayKey(d) && w.dayId !== 'watch');
 export const weekCount = (d: Date) => { const s = weekStart(d); return Array.from({ length: 7 }, (_, i) => addDays(s, i)).filter((x) => doneOn(x)).length; };
 
 export function history(name: string) {

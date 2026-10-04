@@ -12,7 +12,8 @@ import { program } from '../../domain/training';
 import { latestW } from '../../domain/body';
 import { notif, TOPICS, tune } from '../../domain/reminders';
 import { ensurePermission } from '../../store/notify';
-import { fromMin, thDate } from '../../domain/time';
+import { fromMin, thDate, dayKey } from '../../domain/time';
+import { healthState, healthDaily, healthAvailable, connectHealth, syncHealth, openHealthSettings, lastDays } from '../../health';
 import type { Signal } from '@preact/signals';
 import { Stepper } from '../sheets';
 import { isNative, captureStatus, openListenerSettings, listApps, setCapturePackages, setCaptureSenders } from '../../native';
@@ -153,6 +154,32 @@ export function Profile() {
   );
 }
 
+function HealthSection() {
+  const h = healthState.value, [avail, setAvail] = useState<{ ok: boolean; why: string } | null>(null), [busy, setBusy] = useState(false);
+  useEffect(() => { void healthAvailable().then(setAvail); }, []);
+  const today = healthDaily.value[dayKey()] ?? {}, yday = lastDays(2)[1], y = healthDaily.value[yday] ?? {};
+  const go = async (f: () => Promise<unknown>) => { setBusy(true); try { await f(); } finally { setBusy(false); } };
+  return <>
+    <span class="muted" style={{ fontSize: 13, fontWeight: 600, padding: '0 4px' }}>สุขภาพ · นาฬิกา (Health Connect)</span>
+    <div class="card" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {!isNative && <span class="small muted">ใช้ได้เฉพาะแอป Android ที่ติดตั้งแล้ว</span>}
+      {isNative && avail && !avail.ok && <span class="small" style={{ color: 'var(--error)' }}>{avail.why}</span>}
+      {isNative && <>
+        <span class="small muted" style={{ lineHeight: 1.55 }}>ต้องเปิดที่แอป Zepp ก่อน: โปรไฟล์ → การเชื่อมต่อบัญชีบุคคลที่สาม → Health Connect แล้วอนุญาตให้ส่งข้อมูล จากนั้นกดเชื่อมด้านล่าง แอปอ่านอย่างเดียว ไม่เขียนกลับ ข้อมูลอยู่ในเครื่อง</span>
+        <div class="row" style={{ gap: 8 }}>
+          <button class="btn primary grow" disabled={busy} onClick={() => go(async () => { const ok = await connectHealth(); toast(ok ? 'เชื่อมแล้ว' : 'ยังไม่ได้เชื่อม'); })}>{h.on ? 'ขอสิทธิ์อีกครั้ง' : 'เชื่อม Health Connect'}</button>
+          {h.on && <button class="btn soft grow" disabled={busy} onClick={() => go(async () => { await syncHealth(true); toast('ซิงก์แล้ว'); })}>ซิงก์ตอนนี้</button>}
+        </div>
+        {h.msg && <span class="small muted">{h.msg}{h.last ? ` · ${new Date(h.last).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}` : ''}</span>}
+        {h.on && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 6 }}>
+          {[['ก้าววันนี้', today.steps], ['ชีพจรพักล่าสุด', today.rhr ?? y.rhr], ['kcal กิจกรรม', today.kcal]].map(([l, v]) => <span class="col" style={{ background: 'var(--surface-2)', borderRadius: 12, padding: '8px 10px' }}><span class="muted" style={{ fontSize: 11.5 }}>{l}</span><span class="num" style={{ fontSize: 15, fontWeight: 600 }}>{v != null ? Number(v).toLocaleString() : '—'}</span></span>)}
+        </div>}
+        <button class="small" style={{ alignSelf: 'flex-start', fontWeight: 600, textDecoration: 'underline' }} onClick={() => openHealthSettings()}>เปิดการตั้งค่า Health Connect</button>
+      </>}
+    </div>
+  </>;
+}
+
 function ConnScreen() {
   const st = captureStatus.value;
   return <>
@@ -160,6 +187,7 @@ function ConnScreen() {
       <div class="row"><span class="medal" style={{ borderRadius: 14, background: 'var(--success-tint)', color: 'var(--workout-ink)' }}><Icon n="favorite" fill /></span><span class="col grow"><span class="t16">Health Connect</span><span class="muted" style={{ fontSize: 12.5, fontWeight: 600 }}>ยังไม่เชื่อม · กำลังทำ</span></span></div>
       <span class="small muted">จะดึงการนอน ก้าวเดิน น้ำหนัก และหัวใจจาก Zepp/Amazfit ผ่าน Health Connect ตอนนี้ใช้ปุ่ม “นอนแล้ว” และชั่งน้ำหนักในแอปแทน</span>
     </div>
+    <HealthSection />
     <span class="muted" style={{ fontSize: 13, fontWeight: 600, padding: '0 4px' }}>อ่านแจ้งเตือนธนาคาร</span>
     {!isNative ? <div class="card" style={{ padding: 16 }}><span class="small muted">ใช้ได้เฉพาะแอป Android ที่ติดตั้งแล้ว ตอนนี้วางข้อความแจ้งเตือนในหน้าเงินแทน (เงิน → เพิ่ม → วางแจ้งเตือนธนาคาร)</span></div> : <>
       <div class="card" style={{ borderRadius: 22, padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
