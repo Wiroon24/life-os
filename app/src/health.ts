@@ -12,7 +12,7 @@ export const healthState = persisted<{ on: boolean; last: number; msg: string; c
 /** Daily numbers that have no home elsewhere: steps, resting heart rate, active kcal. */
 export const healthDaily = persisted<Record<string, { steps?: number; rhr?: number; kcal?: number }>>('healthDaily', {});
 
-export const BUILD = 'hc-2026-10-05b';
+export const BUILD = 'hc-2026-10-05c';
 /** Visible trace of what the native calls did, because the permission flow runs outside the WebView. */
 export const healthLog = signal<string[]>([]);
 const note = (s: string) => { healthLog.value = [...healthLog.value.slice(-14), `${new Date().toLocaleTimeString('th-TH')} ${s}`]; };
@@ -25,19 +25,20 @@ async function step<T>(name: string, p: Promise<T>, ms = 10000): Promise<T> {
 }
 const READ = ['sleep', 'weight', 'steps', 'restingHeartRate', 'calories', 'workouts'] as const;
 type HealthPlugin = typeof import('@capgo/capacitor-health').Health;
-let H: HealthPlugin | null = null;
-const plugin = async () => (H ??= (await import('@capgo/capacitor-health')).Health);
+/** Never return or await the plugin proxy itself: Capacitor proxies answer `.then`, so a promise resolved with one never settles. Keep it inside a plain object. */
+let H: { api: HealthPlugin } | null = null;
+const plugin = async () => (H ??= { api: (await import('@capgo/capacitor-health')).Health });
 
 export async function healthAvailable() {
   if (!isNative) return { ok: false, why: 'ใช้ได้เฉพาะแอป Android ที่ติดตั้งแล้ว' };
-  try { note(`ปลั๊กอิน Health ${Capacitor.isPluginAvailable('Health') ? 'พร้อม' : 'ไม่พบ'}`); const h = await step('โหลดปลั๊กอิน', plugin()); const r = await step('isAvailable', h.isAvailable()); return { ok: r.available, why: r.reason ?? 'เครื่องนี้ยังไม่มี Health Connect' }; } catch (e) { return { ok: false, why: String(e) }; }
+  try { note(`ปลั๊กอิน Health ${Capacitor.isPluginAvailable('Health') ? 'พร้อม' : 'ไม่พบ'}`); const h = (await step('โหลดปลั๊กอิน', plugin())).api; const r = await step('isAvailable', h.isAvailable()); return { ok: r.available, why: r.reason ?? 'เครื่องนี้ยังไม่มี Health Connect' }; } catch (e) { return { ok: false, why: String(e) }; }
 }
 
 /** Is anything already allowed? (The permission screen can outlive the app process, so never rely on the request promise alone.) */
 export async function refreshHealth() {
   if (!isNative) return false;
   try {
-    const r = await step('checkAuthorization', (async () => (await plugin()).checkAuthorization({ read: [...READ] as never }))());
+    const r = await step('checkAuthorization', (async () => (await plugin()).api.checkAuthorization({ read: [...READ] as never }))());
     const ok = r.readAuthorized.length > 0;
     if (ok !== healthState.value.on) healthState.value = { ...healthState.value, on: ok, msg: ok ? `อนุญาตแล้ว ${r.readAuthorized.length} ประเภท` : healthState.value.msg };
     return ok;
@@ -47,7 +48,7 @@ export async function refreshHealth() {
 /** Opens the Health Connect permission sheet (skipped when permission is already granted). */
 export async function connectHealth() {
   const a = await healthAvailable(); if (!a.ok) { healthState.value = { ...healthState.value, msg: a.why }; return false; }
-  const h = await plugin();
+  const h = (await plugin()).api;
   healthState.value = { ...healthState.value, msg: 'กำลังขอสิทธิ์…' };
   try {
     if (await refreshHealth()) { await syncHealth(true); return true; }
@@ -58,7 +59,7 @@ export async function connectHealth() {
     return ok;
   } catch (e) { healthState.value = { ...healthState.value, msg: `เชื่อมไม่สำเร็จ: ${String(e).slice(0, 80)}` }; return false; }
 }
-export async function openHealthSettings() { try { await step('openHealthConnectSettings', (async () => (await plugin()).openHealthConnectSettings())()); } catch { /* shown in the log */ } }
+export async function openHealthSettings() { try { await step('openHealthConnectSettings', (async () => (await plugin()).api.openHealthConnectSettings())()); } catch { /* shown in the log */ } }
 
 const WORKOUT_TH: Record<string, string> = { basketball: 'บาสเกตบอล', running: 'วิ่ง', runningTreadmill: 'วิ่งลู่', walking: 'เดิน', cycling: 'ปั่นจักรยาน', swimming: 'ว่ายน้ำ', strengthTraining: 'เวทเทรนนิ่ง', traditionalStrengthTraining: 'เวทเทรนนิ่ง', weightlifting: 'ยกน้ำหนัก', yoga: 'โยคะ', highIntensityIntervalTraining: 'HIIT', hiking: 'เดินป่า', badminton: 'แบดมินตัน', soccer: 'ฟุตบอล', tennis: 'เทนนิส' };
 const iso = (d: Date) => d.toISOString();
@@ -71,7 +72,7 @@ export async function syncHealth(force = false, days = 14) {
   busy = true;
   const counts: Record<string, number> = {};
   try {
-    const h = await plugin(), end = new Date(), start = new Date(Date.now() - days * 864e5);
+    const h = (await plugin()).api, end = new Date(), start = new Date(Date.now() - days * 864e5);
     const range = { startDate: iso(start), endDate: iso(end) };
 
     // Sleep: cluster segments into nights, keep the longest per wake-up day.
