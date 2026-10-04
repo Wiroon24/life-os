@@ -5,7 +5,8 @@ import { effect, signal } from '@preact/signals';
 import { addTxn, parseNotification, txns } from './domain/money';
 import { appNow, blocksFor, statusOf, setStatus, template, days } from './domain/plan';
 import { dayKey, addDays } from './domain/time';
-import { notif, tune } from './domain/reminders';
+import { notif, tune, waterSlots } from './domain/reminders';
+import { water, WATER_GOAL } from './domain/food';
 import { medLog, meds } from './domain/meds';
 import { workouts } from './domain/training';
 import { toast } from './store/ui';
@@ -75,6 +76,7 @@ async function scheduleAll() {
       add(`${b.id}`, b.start - lead, b.title, b.sub, { blockId: b.id }, bypass);
       if (off <= 1 && n.level === 1 && (topic === 'workout' || topic === 'meds')) Array.from({ length: tn.nagCount }, (_, j) => tn.nagGap * (j + 1)).forEach((g, i) => add(`${b.id}:nag${i}`, b.start + g, i === tn.nagCount - 1 ? `ยังไม่ได้${b.title}เลยนะ อีก ${tn.nagGap} นาทีจะบันทึกว่าพลาด` : `ยังไม่ได้${b.title}`, undefined, { blockId: b.id }, bypass));
     }
+    if (n.on.water && off <= 1) for (const s of waterSlots(off ? 0 : (water.value[key] ?? 0), !off)) add(`water:${s.at}`, s.at, 'ดื่มน้ำได้แล้ว', `เป้าวันนี้ ${WATER_GOAL.toLocaleString()} ml · เหลืออีกประมาณ ${s.left.toLocaleString()} ml`, {});
     if (n.on.brief && n.time.brief != null) add('brief', n.time.brief, 'สรุปตอนตื่น', 'แผนวันนี้ + 3 เรื่องสำคัญ', {});
   }
   list.sort((a, b) => (a.schedule!.at as Date).getTime() - (b.schedule!.at as Date).getTime());
@@ -94,7 +96,7 @@ export async function initNative() {
     if (ev.actionId === 'snooze') await LocalNotifications.schedule({ notifications: [{ id: hash(`snz:${ev.notification.id}:${Date.now()}`), title: ev.notification.title ?? '', body: ev.notification.body ?? undefined, schedule: { at: new Date(Date.now() + 15 * 60_000), allowWhileIdle: true }, smallIcon: 'ic_stat_iam', channelId: 'iam-reminders', actionTypeId: 'iam-block', extra: x }] });
   });
   // Re-plan whenever anything that affects reminders changes.
-  effect(() => { void [days.value, template.value, notif.value, medLog.value, meds.value, workouts.value]; scheduleSoon(); });
+  effect(() => { void [days.value, template.value, notif.value, water.value, medLog.value, meds.value, workouts.value]; scheduleSoon(); });
   // Notification capture
   await refreshCaptureStatus();
   await importCaptured();

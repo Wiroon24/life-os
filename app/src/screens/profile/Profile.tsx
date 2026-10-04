@@ -117,6 +117,14 @@ export function Profile() {
                 {row('ทวงกี่ครั้ง', 'ครั้งสุดท้ายจะแจ้งว่าจะบันทึกว่าพลาด', <Stepper value={tn.nagCount} onChange={(x) => set({ nagCount: Math.min(6, Math.max(1, x)) })} step={1} fmt={(v) => `${v} ครั้ง`} w={84} />)}
               </div>
             </>}
+            {n.on.water && <>
+              <span class="muted" style={{ fontSize: 13, fontWeight: 600, padding: '0 4px', marginTop: 4 }}>เตือนดื่มน้ำ</span>
+              <div class="card" style={{ padding: '2px 14px' }}>
+                {row('ทุก', 'ทักเฉพาะตอนที่ดื่มน้อยกว่าที่ควรถึงเวลานั้น', <Stepper value={tn.waterGap} onChange={(x) => set({ waterGap: Math.max(30, x) })} step={30} fmt={(v) => (v % 60 ? `${v} นาที` : `${v / 60} ชม.`)} w={84} />)}
+                {row('เริ่ม', 'ไม่ทักก่อนเวลานี้', <Stepper value={tn.waterFrom} onChange={(x) => set({ waterFrom: (x + 1440) % 1440 })} step={30} fmt={fromMin} w={64} />)}
+                {row('ถึง', 'เวลาที่ควรดื่มครบเป้า', <Stepper value={tn.waterTo} onChange={(x) => set({ waterTo: (x + 1440) % 1440 })} step={30} fmt={fromMin} w={64} />)}
+              </div>
+            </>}
             <span class="muted" style={{ fontSize: 13, fontWeight: 600, padding: '0 4px', marginTop: 4 }}>เตือนบันทึกอาหาร</span>
             <div class="card" style={{ padding: '2px 14px' }}>
               {row('ทักถ้าไม่บันทึกนาน', 'นับจากมื้อล่าสุด', <Stepper value={tn.foodGap} onChange={(x) => set({ foodGap: Math.max(60, x) })} step={30} fmt={(v) => `${v / 60} ชม.`} w={84} />)}
