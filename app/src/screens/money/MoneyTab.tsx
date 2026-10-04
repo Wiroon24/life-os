@@ -67,7 +67,7 @@ export function MoneyTab() {
   const conf = txns.value.filter((t) => t.status === 'confirmed' && (filter === 'ทั้งหมด' || t.cat === filter)).sort((a, b) => b.ts - a.ts).slice(0, 60);
   const groups: { k: string; items: Txn[] }[] = [];
   for (const t of conf) { const k = dayKey(new Date(t.ts)); const g = groups.find((x) => x.k === k); if (g) g.items.push(t); else groups.push({ k, items: [t] }); }
-  const sim = simulate(debtPlan.value.extra, debtPlan.value.mode), car = live(debts.value).find((d) => d.name === 'รถ');
+  const sim = simulate(debtPlan.value.extra, debtPlan.value.mode, debtPlan.value), car = live(debts.value).find((d) => d.name === 'รถ');
   const nextCut = live(cards.value).map((cd) => ({ cd, st: cardStatement(cd, today) })).sort((a, b) => a.st.daysToCut - b.st.daysToCut)[0], daysLeft = Math.round((nextPayday(today).getTime() - new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime()) / 864e5);
   const planned = Math.round((s.budget * s.pacePct) / 100), diff = Math.round(s.spent - planned); // + = used more than planned so far
   return (

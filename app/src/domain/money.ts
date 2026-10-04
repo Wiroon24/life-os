@@ -12,7 +12,7 @@ export interface Cat extends Item { name: string; budget: number; icon: string; 
 export interface CreditCard extends Item { name: string; last4?: string; limit?: number; cutDay: number; dueDay: number; apr?: number; payInFull: boolean; note?: string }
 export interface Bill extends Item { name: string; amount: number; dueDay: number; approx?: boolean; kind: 'fixed' | 'card' | 'sub'; fixed: boolean }
 export interface Txn { id: string; ts: number; amount: number; inc: boolean; merchant: string; cat: string; account: string; card?: string; status: 'pending' | 'confirmed'; raw?: string; source?: 'notif' | 'slip' | 'manual' | 'text'; fx?: { cur: string; amt: number } }
-export interface Debt extends Item { name: string; icon: string; balance: number; orig: number; payment: number; rate: number; rateAfter?: number; fixedUntil?: string; meta: string; inBills: boolean }
+export interface Debt extends Item { name: string; icon: string; balance: number; orig: number; payment: number; rate: number; rateAfter?: number; fixedUntil?: string; meta: string; inBills: boolean; type?: string; rateType?: 'reducing' | 'fixed'; monthsLeft?: number }
 
 const SEED_EXTRA_RAW: [string, string, string, string, string, CatKind][] = [
   ['ลงทุน', 'trending_up', '#E6F6FB', '#0B6E8A', '#22A6C9', 'invest'], ['ย้ายบัญชี', 'swap_horiz', '#EFEDE7', '#6B6962', '#A3A097', 'transfer'], ['จ่ายบัตร/หนี้', 'credit_score', '#EFEDE7', '#6B6962', '#A3A097', 'transfer'],
@@ -44,7 +44,7 @@ const legacyCard = (() => { try { return JSON.parse(localStorage.getItem('iam5:c
 export const cards = persisted<CreditCard[]>('cards', () => [{ id: uid(), order: 1, name: 'KTC', last4: '7292', cutDay: legacyCard?.cutDay ?? 20, dueDay: legacyCard?.dueDay ?? 5, payInFull: true, source: 'seed' as const }]);
 
 export const debts = persisted<Debt[]>('debts', () => [
-  { name: 'รถ', icon: 'directions_car', balance: 216500, orig: 290000, payment: 4383, rate: 5.4, meta: 'เหลือ 56 งวด · งวดละ 4,383 · ยอดต้นประมาณ', inBills: true },
+  { name: 'รถ', icon: 'directions_car', type: 'รถ', rateType: 'fixed' as const, monthsLeft: 56, balance: 216500, orig: 290000, payment: 4383, rate: 5.4, meta: 'เหลือ 56 งวด · งวดละ 4,383 · ยอดต้นประมาณ', inBills: true },
   { name: 'กยศ.', icon: 'school', balance: 22000, orig: 22000, payment: 1348, rate: 1, meta: 'หักจากเงินเดือน · 1%', inBills: false },
   { name: 'บ้าน', icon: 'home', balance: 2165568, orig: 2165568, payment: 8900, rate: 2.3, rateAfter: 4.0, fixedUntil: '2029-03', meta: '2.3% คงที่ 3 ปี', inBills: true },
 ].map((d, i) => ({ ...d, id: uid(), order: i + 1, source: 'seed' as const })));
@@ -56,7 +56,14 @@ export const catMemory = persisted<Record<string, string>>('catMemory', {});
 /** Pay plan per cycle start (debt extra + reserve); `default` is the template. */
 export const payPlans = persisted<Record<string, { debt: number; reserve: number; applied?: boolean }>>('payPlans', { default: { debt: 1500, reserve: 3100 } });
 export const reserveBalance = persisted('reserveBalance', 0);
-export const debtPlan = persisted<{ mode: 'aval' | 'snow' | 'none'; extra: number }>('debtPlan', { mode: 'aval', extra: 1500 });
+export type DebtMode = 'aval' | 'snow' | 'manual' | 'none';
+export const debtPlan = persisted<{ mode: DebtMode; extra: number; target?: string; lump?: number; lumpTo?: string }>('debtPlan', { mode: 'aval', extra: 1500 });
+/** Older installs: the car loan is fixed-rate (interest locked for the whole contract). */
+debts.value = debts.value.map((d) => (d.name === 'รถ' && d.source === 'seed' && !d.rateType ? { ...d, rateType: 'fixed' as const, monthsLeft: d.monthsLeft ?? 56, type: 'รถ' } : d));
+export const isFixed = (d: Debt) => d.rateType === 'fixed';
+/** Fixed-rate loans: the total still owed is the remaining installments, so prepaying shortens the term but never saves interest. */
+export const owedOf = (d: Debt) => (isFixed(d) ? d.payment * (d.monthsLeft ?? Math.ceil(d.balance / Math.max(1, d.payment))) : d.balance);
+export const lockedInterest = (d: Debt) => (isFixed(d) ? Math.max(0, owedOf(d) - d.balance) : 0);
 
 /* ---------- Cycle ---------- */
 export function cycle(today = new Date()) {
@@ -127,23 +134,33 @@ export const pending = () => txns.value.filter((t) => t.status === 'pending').so
 
 /* ---------- Debt payoff simulation ---------- */
 const monthsBetween = (ym: string, from = new Date()) => { const [y, m] = ym.split('-').map(Number); return (y - from.getFullYear()) * 12 + (m - 1 - from.getMonth()); };
-export function simulate(extra: number, mode: 'aval' | 'snow' | 'none') {
+/** isolate: extra goes only to `target` and freed instalments are not redirected, to show what that one choice does by itself. */
+export interface SimOpts { target?: string; lump?: number; lumpTo?: string; isolate?: boolean }
+export function simulate(extra: number, mode: DebtMode, o: SimOpts = {}) {
   const ds = live(debts.value), b: Record<string, number> = {}, off: Record<string, number> = {};
-  ds.forEach((d) => (b[d.id] = d.balance));
-  const rateAt = (d: Debt, m: number) => (d.fixedUntil && d.rateAfter != null && m > monthsBetween(d.fixedUntil) ? d.rateAfter : d.rate);
-  const order = mode === 'none' ? null : [...ds].sort((x, y) => (mode === 'aval' ? rateAt(y, 1) - rateAt(x, 1) : x.balance - y.balance)).map((d) => d.id);
-  let int = 0, m = 0;
+  ds.forEach((d) => (b[d.id] = owedOf(d)));
+  const rateAt = (d: Debt, m: number) => (isFixed(d) ? 0 : d.fixedUntil && d.rateAfter != null && m > monthsBetween(d.fixedUntil) ? d.rateAfter : d.rate);
+  const aval = (x: Debt, y: Debt) => rateAt(y, 1) - rateAt(x, 1);
+  const order = mode === 'none' ? null : o.isolate && o.target ? [o.target] : [...ds].sort((x, y) => {
+    if (mode === 'manual' && o.target) { if (x.id === o.target) return -1; if (y.id === o.target) return 1; }
+    return mode === 'snow' ? owedOf(x) - owedOf(y) : aval(x, y);
+  }).map((d) => d.id);
+  let int = 0, m = 0, paid = 0;
+  if (o.lump && o.lump > 0) {
+    let pool = o.lump;
+    for (const k of [o.lumpTo, ...(order ?? ds.map((d) => d.id))].filter(Boolean) as string[]) { if (pool <= 0) break; const p = Math.min(pool, b[k] ?? 0); if (p > 0) { b[k] -= p; pool -= p; paid += p; if (b[k] <= 0.5 && !off[k]) off[k] = 0; } }
+  }
   while (ds.some((d) => b[d.id] > 0.5) && m < 720) {
     m++; let pool = order ? extra : 0;
     for (const d of ds) {
-      if (b[d.id] <= 0.5) { if (order) pool += d.payment; continue; }
+      if (b[d.id] <= 0.5) { if (order && !o.isolate) pool += d.payment; continue; }
       const i = (b[d.id] * rateAt(d, m)) / 1200; int += i; b[d.id] += i;
-      const p = Math.min(b[d.id], d.payment); b[d.id] -= p; if (order) pool += d.payment - p;
+      const p = Math.min(b[d.id], d.payment); b[d.id] -= p; paid += p; if (order && !o.isolate) pool += d.payment - p;
       if (b[d.id] <= 0.5 && !off[d.id]) off[d.id] = m;
     }
-    if (order) for (const k of order) { if (pool <= 0) break; if (b[k] > 0.5) { const p = Math.min(pool, b[k]); b[k] -= p; pool -= p; if (b[k] <= 0.5 && !off[k]) off[k] = m; } }
+    if (order) for (const k of order) { if (pool <= 0) break; if (b[k] > 0.5) { const p = Math.min(pool, b[k]); b[k] -= p; pool -= p; paid += p; if (b[k] <= 0.5 && !off[k]) off[k] = m; } }
   }
-  return { int, off, end: m, order };
+  return { int, off, end: m, order, paid };
 }
 export const monthLabel = (m: number) => { const d = new Date(); d.setMonth(d.getMonth() + m); return d.toLocaleDateString('th-TH', { month: 'short', year: 'numeric' }); };
 
