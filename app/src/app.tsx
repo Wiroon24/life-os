@@ -10,6 +10,7 @@ import { CloseDay } from './screens/today/CloseDay';
 import { BodyTab } from './screens/body/BodyTab';
 import { Workout } from './screens/body/Workout';
 import { ExerciseDetail, Analysis } from './screens/body/ExerciseInfo';
+import { Pantry, ReceiptReview } from './screens/body/Pantry';
 import { Mobility, ProgramEdit, Library, History } from './screens/body/TrainMore';
 import { Batch, Shop, Goals } from './screens/body/Eat';
 import { MoneyTab } from './screens/money/MoneyTab';
@@ -27,7 +28,7 @@ import { profile } from './domain/profile';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const SCREENS: Record<string, ComponentType<any>> = {
   timeline: Timeline, meds: Meds, brief: Brief, close: CloseDay,
-  workout: Workout, mobility: Mobility, program: ProgramEdit, library: Library, history: History, exercise: ExerciseDetail, analysis: Analysis, batch: Batch, shop: Shop, goals: Goals,
+  workout: Workout, mobility: Mobility, program: ProgramEdit, library: Library, history: History, exercise: ExerciseDetail, analysis: Analysis, pantry: Pantry, receipt: ReceiptReview, batch: Batch, shop: Shop, goals: Goals,
   payday: Payday, debt: Debt, bills: Bills, 'coach-settings': CoachSettings, profile: Profile,
 };
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

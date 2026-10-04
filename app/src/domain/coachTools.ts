@@ -10,6 +10,7 @@ import { medLog, meds } from './meds';
 import { cycle, safeToSpend, categories, catSpend, pending, debts, debtPlan, simulate, owedOf, monthLabel } from './money';
 import { live } from '../store/collection';
 import { healthDaily } from '../health';
+import { pantry, addStock, useStock, findStock, daysLeftOf, macroOf, type PantryKind } from './pantry';
 
 /** Snapshots so a coach edit can be undone from its card (kept small). */
 const snaps = persisted<Record<string, string>>('coachUndo', {});
@@ -74,6 +75,10 @@ function report(topic: Topic, n: number): string {
   }
   return out.join('\n');
 }
+export function pantryText() {
+  const xs = live(pantry.value); if (!xs.length) return 'ว่าง';
+  return xs.map((p) => { const d = daysLeftOf(p), m = macroOf(p); return `${p.name} ${+p.qty.toFixed(2)}${p.unit}${m ? ` (P${Math.round(m.p)}g ${Math.round(m.k)}kcal)` : ''}${d != null ? ` เหลือ${d}วัน` : ''}`; }).join('; ');
+}
 const fmtM = (m: Macro) => `${m.k} kcal P${m.p} C${m.c} F${m.f}`;
 
 function programText() {
@@ -93,6 +98,8 @@ export const EXTRA_TOOLS: Anthropic.Beta.BetaTool[] = [
       day_id: { type: 'string', description: 'รหัสวันจาก get_program เช่น upA loA upB loB rec car' }, op: { type: 'string', enum: ['add', 'remove', 'update', 'replace'] },
       exercise: { ...nullable('string'), description: 'ชื่อท่าที่มีอยู่ในวันนั้น (update/remove/replace)' }, new_exercise: { ...nullable('string'), description: 'ชื่อท่าจากคลังท่า (add/replace)' },
       sets: nullable('integer'), reps: nullable('integer'), kg: nullable('number'), rest: nullable('integer') } } },
+  { name: 'update_pantry', description: 'อัปเดตของในครัว: add=ซื้อมาเพิ่ม, use=ใช้ไปแล้ว (ลดจำนวน), remove=เอาออกทั้งหมด (ทิ้ง/หมด)', strict: true,
+    input_schema: { type: 'object', additionalProperties: false, required: ['op', 'name', 'qty', 'unit', 'price'], properties: { op: { type: 'string', enum: ['add', 'use', 'remove'] }, name: { type: 'string' }, qty: nullable('number'), unit: { ...nullable('string'), description: 'g kg ฟอง ชิ้น แพ็ก ถุง ขวด กล่อง' }, price: nullable('number') } } },
   { name: 'set_nutrition_targets', description: 'ตั้งเป้าแคลอรี่/มาโครต่อวัน ใช้เมื่อผู้ใช้สั่งหรือตอบรับข้อเสนอเท่านั้น (reset=true คือกลับไปใช้ค่าที่แอปคำนวณ)', strict: true,
     input_schema: { type: 'object', additionalProperties: false, required: ['day_type', 'kcal', 'protein', 'carb', 'fat', 'reset'], properties: { day_type: { type: 'string', enum: ['train', 'rest', 'both'] }, kcal: nullable('integer'), protein: nullable('integer'), carb: nullable('integer'), fat: nullable('integer'), reset: { type: 'boolean' } } } },
 ];
@@ -122,6 +129,13 @@ export function runExtra(name: string, input: Record<string, unknown>, cards: Ca
     program.value = program.value.map((d) => (d.id === day.id ? { ...d, exercises: nextEx } : d));
     cards.push({ type: 'done', text: `โปรแกรม · ${text}`, undo: keep('prog', before) });
     return `แก้แล้ว: ${text}`;
+  }
+  if (name === 'update_pantry') {
+    const nm = String(input.name), qty = num(input.qty), unit = typeof input.unit === 'string' ? input.unit : 'ชิ้น', op = String(input.op);
+    if (op === 'add') { if (!qty) return 'ต้องระบุจำนวน'; addStock({ name: nm, qty, unit, price: num(input.price), kind: undefined as PantryKind | undefined }); cards.push({ type: 'done', text: `ครัว · เพิ่ม ${nm} ${qty} ${unit}` }); return `เพิ่มแล้ว ตอนนี้: ${pantryText()}`; }
+    const it = findStock(nm); if (!it) return `ไม่เจอ ${nm} ในครัว ตอนนี้มี: ${pantryText()}`;
+    if (op === 'remove') { useStock(it.id, it.qty); cards.push({ type: 'done', text: `ครัว · เอา ${it.name} ออก` }); return 'เอาออกแล้ว'; }
+    if (!qty) return 'ต้องระบุจำนวนที่ใช้'; useStock(it.id, qty); cards.push({ type: 'done', text: `ครัว · ใช้ ${it.name} ${qty} ${it.unit}` }); return `หักแล้ว`;
   }
   if (name === 'set_nutrition_targets') {
     const before = JSON.stringify(customTargets.value), types: DayType[] = input.day_type === 'both' ? ['train', 'rest'] : [input.day_type as DayType], next = { ...customTargets.value };

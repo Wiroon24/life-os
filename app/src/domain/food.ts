@@ -4,7 +4,7 @@ import { dayKey, clock, parseKey } from './time';
 
 export interface Macro { k: number; p: number; c: number; f: number }
 export interface FoodEntry extends Macro { id: string; date: string; time: string; slot: string; name: string; icon: string; source: 'box' | 'quick' | 'photo' | 'text' | 'manual' }
-export interface Box extends Macro { id: string; name: string; qty: number; madeAt: string; keepDays: number }
+export interface Box extends Macro { id: string; name: string; qty: number; madeAt: string; keepDays: number; cost?: number }
 export interface Ingredient { name: string; per100: Macro; step: number; unit?: string }
 
 export type DayType = 'train' | 'rest';

@@ -9,7 +9,7 @@ import { addTxn, confirmTxns, safeToSpend, txns, categories } from './money';
 import { planFor, swapDays, weekIds, dayById, workouts } from './training';
 import { latestW, avg7, rate, logWeight, weekSummary, proposals, checkins } from './body';
 import { recovery, nightFor, hoursOf } from './sleep';
-import { EXTRA_TOOLS, runExtra, undoSnap } from './coachTools';
+import { EXTRA_TOOLS, runExtra, undoSnap, pantryText } from './coachTools';
 
 export type Card =
   | { type: 'log'; ids: string[]; food: string; k: number; p: number }
@@ -56,6 +56,7 @@ function snapshot() {
     `ซ้อมวันนี้: ${p.name}${workouts.value.some((w) => w.date === k) ? ' (ทำแล้ว)' : ''} · สัปดาห์นี้: ${week}`,
     `กินแล้ว ${have.k}/${t.k} kcal · P ${have.p}/${t.p} · C ${have.c}/${t.c} · F ${have.f}/${t.f} · มื้อ: ${entriesOn(d).map((e) => `${e.time} ${e.name}`).join(', ') || '-'}`,
     `ตู้ meal prep: ${fr}`,
+    `ของในครัว (วัตถุดิบยังไม่ได้ทำ): ${pantryText()}`,
     `น้ำหนักเฉลี่ย 7 วัน ${avg7(d)?.toFixed(1) ?? latestW()?.kg ?? '-'} kg · อัตรา ${rate(d)?.toFixed(2) ?? '-'} kg/สัปดาห์`,
     `นอนเมื่อคืน ${h?.toFixed(1) ?? '-'} ชม. · ฟื้นตัว ${recovery(d) ?? '-'}`,
     `เงิน: ใช้ได้วันนี้ ${Math.round(s.left)} ฿ · ใช้ไป ${s.usedPct}% ของงบรอบนี้ (จังหวะควรเป็น ${s.pacePct}%)`,
@@ -73,6 +74,7 @@ function systemPrompt() {
 เรื่องเงินและหนี้: ให้ตัวเลขและทางเลือก ไม่ฟันธงแทนผู้ใช้ เพราะคุณไม่ใช่ที่ปรึกษาการเงินที่มีใบอนุญาต
 เรื่องสุขภาพ: ถ้ามีอาการเจ็บผิดปกติ แนะนำให้พบแพทย์/นักกายภาพ
 ห้ามเขียนค่าที่ผู้ใช้ตั้งเองทับ ถ้าจะเสนอให้เสนอเป็นข้อเสนอ
+ของในครัว: ตอนแนะนำมื้อหรือ meal prep ให้ใช้ของในครัวจริงก่อน เรียงของที่ใกล้เสียก่อน บอกโปรตีนที่ได้ และของที่ขาดให้ซื้อเพิ่ม เมื่อผู้ใช้บอกว่าซื้อหรือใช้ของไป ให้เรียก update_pantry
 วิเคราะห์และความคืบหน้า: เมื่อผู้ใช้ถามความคืบหน้า ขอให้วิเคราะห์ผลการใช้งาน หรือขอคำแนะนำ ให้เรียก get_report (topic ที่เกี่ยวข้อง หรือ overview) ก่อนเสมอ ห้ามเดาตัวเลข อ้างตัวเลขจริง ชี้ว่าอะไรดี อะไรพลาด เพราะอะไร แล้วปิดด้วยข้อเสนอที่ทำได้เลย 1–3 ข้อ
 แก้โปรแกรมซ้อมและเป้าอาหาร: ใช้ edit_program / set_nutrition_targets เฉพาะเมื่อผู้ใช้สั่งชัดเจนหรือตอบรับข้อเสนอของคุณแล้ว ถ้าเป็นแค่ความเห็นของคุณ ให้เสนอก่อนแล้วถามว่าจะให้แก้ไหม ก่อนแก้โปรแกรมเรียก get_program ดูรหัสวันและคลังท่า ระวังประวัติเจ็บเข่า/ข้อเท้า/น่อง ไม่ตัดท่า compound ของผู้ใช้ เมื่อแก้แล้วบอกสั้นๆ ว่าเปลี่ยนอะไรจากอะไร (ผู้ใช้กดย้อนกลับได้)`;
 }

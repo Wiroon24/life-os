@@ -136,7 +136,12 @@ export function guessCat(merchant: string, inc: boolean, amount?: number, ts?: n
 }
 
 export function addTxn(t: Omit<Txn, 'id' | 'cat' | 'status'> & { cat?: string; status?: Txn['status'] }) {
-  if (t.source === 'notif' && isDuplicate(t)) return txns.value.find((x) => x.raw && parseRaw(x.raw) && t.raw && dupKey(parseRaw(t.raw)!) === dupKey(parseRaw(x.raw)!)) ?? txns.value[0];
+  if (t.source === 'notif') {
+    // The same purchase may already exist from a scanned receipt/slip (same amount within 36 h).
+    const slip = txns.value.find((x) => x.source === 'slip' && !x.inc === !t.inc && x.amount === t.amount && Math.abs(x.ts - t.ts) < 36 * 3600e3);
+    if (slip) return slip;
+    if (isDuplicate(t)) return txns.value.find((x) => x.raw && parseRaw(x.raw) && t.raw && dupKey(parseRaw(t.raw)!) === dupKey(parseRaw(x.raw)!)) ?? txns.value[0];
+  }
   const tx: Txn = { id: uid(), status: 'pending', ...t, cat: t.cat ?? guessCat(t.merchant, t.inc, t.amount, t.ts) };
   txns.value = [tx, ...txns.value];
   return tx;

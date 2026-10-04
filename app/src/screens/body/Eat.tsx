@@ -8,6 +8,9 @@ import { uid } from '../../store/persist';
 import { targetsFor, totalsOn, entriesOn, suggestForProtein, water, WATER_GOAL, fridge, eatBox, daysLeft, logFood, unlogFood, dayType, INGREDIENTS, shopping, aiTargets, customTargets, tdee, type DayType, type Macro } from '../../domain/food';
 import { latestW, rate } from '../../domain/body';
 import { Stepper } from '../sheets';
+import { openSheet, closeSheet } from '../../store/ui';
+import { live } from '../../store/collection';
+import { pantry, itemGrams, matchIngredient, costPerGram, useStock, suggestBatch } from '../../domain/pantry';
 
 export function EatSection() {
   const date = appNow(), t = targetsFor(date), have = totalsOn(date), meals = entriesOn(date), sug = suggestForProtein(date);
@@ -85,7 +88,7 @@ export function EatSection() {
             <span class="num" style={{ width: 48, height: 48, flex: 'none', borderRadius: 14, background: 'var(--food-soft)', color: 'var(--food-ink)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, fontWeight: 700 }}>×{b.qty}</span>
             <span class="col grow" style={{ gap: 2 }}>
               <span style={{ fontSize: 15.5, fontWeight: 600 }}>{b.name}</span>
-              <span class="num muted" style={{ fontSize: 12.5 }}>{b.k} kcal · P {b.p} · C {b.c} · F {b.f}</span>
+              <span class="num muted" style={{ fontSize: 12.5 }}>{b.k} kcal · P {b.p} · C {b.c} · F {b.f}{b.cost ? ` · ~${b.cost} ฿/กล่อง` : ''}</span>
               {warn ? <span style={{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 2, background: 'var(--error-tint)', color: '#B42318', height: 24, padding: '0 8px', borderRadius: 999, fontSize: 12, fontWeight: 600 }}><Icon n="schedule" size={14} />{dl <= 0 ? 'กินวันนี้' : 'กินภายในพรุ่งนี้'}</span>
                 : <span class="muted" style={{ fontSize: 12 }}>{b.qty === 0 ? 'หมดแล้ว' : `เก็บได้อีก ${dl} วัน`}</span>}
             </span>
@@ -93,8 +96,8 @@ export function EatSection() {
           </button>); })}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8 }}>
-        {([['ทำ batch', 'soup_kitchen', 'batch'], ['ซื้อของ', 'shopping_cart', 'shop'], ['เป้าโภชนาการ', 'tune', 'goals']] as const).map(([l, ic, r]) => (
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8 }}>
+        {([['ทำ batch', 'soup_kitchen', 'batch'], ['ของในครัว', 'kitchen', 'pantry'], ['ซื้อของ', 'shopping_cart', 'shop'], ['เป้าโภชนาการ', 'tune', 'goals']] as const).map(([l, ic, r]) => (
           <button class="card press" style={{ minHeight: 92, borderRadius: 18, padding: 12, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'space-between', textAlign: 'left' }} onClick={() => push(r)}><Icon n={ic} /><span style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.3 }}>{l}</span></button>
         ))}
       </div>
@@ -104,17 +107,27 @@ export function EatSection() {
 
 const sumMacro = (rows: { g: number; i: number }[]) => rows.reduce((a, r) => { const p = INGREDIENTS[r.i].per100; return { k: a.k + (p.k * r.g) / 100, p: a.p + (p.p * r.g) / 100, c: a.c + (p.c * r.g) / 100, f: a.f + (p.f * r.g) / 100 }; }, { k: 0, p: 0, c: 0, f: 0 });
 
-export function Batch() {
-  const [rows, setRows] = useState([{ i: 0, g: 1000 }, { i: 7, g: 900 }, { i: 11, g: 600 }, { i: 14, g: 30 }]);
-  const [boxes, setBoxes] = useState(5), [tgtP, setTgtP] = useState(45), [name, setName] = useState('');
+type Row = { i: number; g: number; pid?: string };
+const initialBatch = (auto?: boolean): { rows: Row[]; boxes: number } => {
+  const s = auto ? suggestBatch() : null;
+  if (!s) return { rows: [{ i: 0, g: 1000 }, { i: 7, g: 900 }, { i: 11, g: 600 }, { i: 14, g: 30 }], boxes: 5 };
+  return { rows: s.rows.map((r) => ({ i: Math.max(0, INGREDIENTS.findIndex((x) => x.name === r.name)), g: r.g, pid: r.pid })), boxes: s.boxes };
+};
+export function Batch({ auto }: { auto?: boolean }) {
+  const init = useState(() => initialBatch(auto))[0];
+  const [rows, setRows] = useState<Row[]>(init.rows), [deduct, setDeduct] = useState(true);
+  const [boxes, setBoxes] = useState(init.boxes), [tgtP, setTgtP] = useState(45), [name, setName] = useState('');
   const [keep, setKeep] = useState(4);
   const tot = sumMacro(rows), prot = rows[0] ? INGREDIENTS[rows[0].i] : null;
   const otherP = sumMacro(rows.slice(1)).p, need = prot ? Math.max(0, Math.round((tgtP * boxes - otherP) / (prot.per100.p / 100) / 10) * 10) : 0;
   const autoName = rows.slice(0, 3).map((r) => INGREDIENTS[r.i].name.replace(/ดิบ|สุก|นึ่ง|\s*\(.*\)/g, '')).join(' ');
   const save = () => {
     const per = { k: Math.round(tot.k / boxes), p: Math.round(tot.p / boxes), c: Math.round(tot.c / boxes), f: Math.round(tot.f / boxes) };
-    const id = uid(); fridge.value = [{ id, name: name.trim() || autoName, qty: boxes, ...per, madeAt: dayKey(), keepDays: keep }, ...fridge.value];
-    showUndo(`เข้าตู้ ${boxes} กล่อง · P ${per.p} g ต่อกล่อง`, () => (fridge.value = fridge.value.filter((b) => b.id !== id))); back();
+    const id = uid(), cost = rows.reduce((a, r) => { const it = r.pid ? pantry.value.find((p) => p.id === r.pid) : null, cg = it ? costPerGram(it) : null; return a + (cg ? cg * r.g : 0); }, 0);
+    const used: [string, number, number][] = deduct ? rows.filter((r) => r.pid).map((r) => { const it = pantry.value.find((p) => p.id === r.pid); const g = it ? itemGrams(it) : null; return [r.pid!, it && g ? (r.g / g) * it.qty : 0, it?.qty ?? 0] as [string, number, number]; }) : [];
+    const snap = pantry.value; for (const [pid, amt] of used) if (amt > 0) useStock(pid, amt);
+    fridge.value = [{ id, name: name.trim() || autoName, qty: boxes, ...per, madeAt: dayKey(), keepDays: keep, ...(cost > 0 ? { cost: Math.round(cost / boxes) } : {}) }, ...fridge.value];
+    showUndo(`เข้าตู้ ${boxes} กล่อง · P ${per.p} g ต่อกล่อง${used.length ? ' · หักของในครัวแล้ว' : ''}`, () => { fridge.value = fridge.value.filter((b) => b.id !== id); pantry.value = snap; }); back();
   };
   return (
     <div class="screen sub" style={{ gap: 12, paddingBottom: 120 }}>
@@ -126,19 +139,23 @@ export function Batch() {
           <div class="row" style={{ gap: 8, minHeight: 60, boxShadow: j ? 'inset 0 1px 0 var(--surface-2)' : 'none' }}>
             <span class="col grow" style={{ minWidth: 0 }}>
               <select style={{ border: 'none', background: 'none', fontSize: 15.5, fontWeight: 600, padding: 0, maxWidth: '100%' }} value={r.i} onChange={(e) => setRows(rows.map((x, k) => (k === j ? { ...x, i: +(e.target as HTMLSelectElement).value } : x)))}>{INGREDIENTS.map((g, gi) => <option value={gi}>{g.name}</option>)}</select>
-              <span class="muted" style={{ fontSize: 12 }}>P {INGREDIENTS[r.i].per100.p} g ต่อ 100 g</span>
+              <span class="muted" style={{ fontSize: 12 }}>P {INGREDIENTS[r.i].per100.p} g ต่อ 100 g{(() => { const it = r.pid ? pantry.value.find((p) => p.id === r.pid) : null, have = it ? itemGrams(it) : null; return have != null ? <b style={{ color: r.g > have ? '#B42318' : 'var(--food-ink)', fontWeight: 600 }}> · ในครัว {Math.round(have)} g{r.g > have ? ` · ขาด ${Math.round(r.g - have)} g` : ''}</b> : null; })()}</span>
             </span>
             <Stepper value={r.g} onChange={(v) => setRows(rows.map((x, k) => (k === j ? { ...x, g: v } : x)))} step={INGREDIENTS[r.i].step} w={56} />
             <button class="btn icon" style={{ width: 36 }} onClick={() => setRows(rows.filter((_, k) => k !== j))} aria-label="ลบ"><Icon n="close" size={18} color="var(--ink-2)" /></button>
           </div>
         ))}
         <button class="row" style={{ minHeight: 52, gap: 6, fontWeight: 600, color: 'var(--ink-2)' }} onClick={() => setRows([...rows, { i: 12, g: 200 }])}><Icon n="add" size={20} />เพิ่มวัตถุดิบ</button>
+        <button class="row" style={{ minHeight: 52, gap: 6, fontWeight: 600, color: 'var(--food-ink)', boxShadow: 'inset 0 1px 0 var(--surface-2)' }} onClick={() => openSheet({ title: 'เลือกจากของในครัว', body: () => <div class="col" style={{ gap: 2 }}>{live(pantry.value).filter((p) => itemGrams(p) != null && matchIngredient(p.name)).map((p) => <button class="row" style={{ minHeight: 56, gap: 10, textAlign: 'left' }} onClick={() => { const idx = INGREDIENTS.findIndex((x) => x.name === matchIngredient(p.name)!.name); setRows((cur) => [...cur, { i: Math.max(0, idx), g: Math.round(Math.min(itemGrams(p)!, 500) / 10) * 10, pid: p.id }]); closeSheet(); }}><span class="grow t16">{p.name}</span><span class="muted num">{Math.round(itemGrams(p)!)} g</span></button>)}{live(pantry.value).length === 0 && <span class="muted">ยังไม่มีของในครัว</span>}</div> })}><Icon n="kitchen" size={20} />เลือกจากของในครัว</button>
+        {rows.some((r) => r.pid) && <button class="row" style={{ minHeight: 48, gap: 8, textAlign: 'left', boxShadow: 'inset 0 1px 0 var(--surface-2)' }} onClick={() => setDeduct(!deduct)}><span style={{ width: 24, height: 24, flex: 'none', borderRadius: 8, background: deduct ? 'var(--check)' : 'transparent', boxShadow: deduct ? 'none' : 'inset 0 0 0 2px #CFCBC1', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{deduct && <Icon n="check" size={16} />}</span><span style={{ fontSize: 14.5 }}>หักของในครัวเมื่อบันทึก</span></button>}
+        {rows.some((r) => { const it = r.pid ? pantry.value.find((p) => p.id === r.pid) : null, have = it ? itemGrams(it) : null; return have != null && r.g > have; }) && <button class="row" style={{ minHeight: 48, gap: 6, fontWeight: 600, color: '#B42318', boxShadow: 'inset 0 1px 0 var(--surface-2)' }} onClick={() => { let n = 0; for (const r of rows) { const it = r.pid ? pantry.value.find((p) => p.id === r.pid) : null, have = it ? itemGrams(it) : null; if (it && have != null && r.g > have) { shopping.value = [...shopping.value, { id: uid(), group: 'ซื้อเพิ่มสำหรับ batch', name: it.name, qty: `${Math.ceil((r.g - have) / 10) * 10} g`, done: false }]; n++; } } toast(`เพิ่ม ${n} อย่างเข้ารายการซื้อของ`); }}><Icon n="add_shopping_cart" size={20} />เพิ่มส่วนที่ขาดเข้ารายการซื้อของ</button>}
       </div>
       <div class="card row" style={{ padding: '8px 12px 8px 16px', justifyContent: 'space-between' }}><span class="t16">แบ่งเป็น</span><Stepper value={boxes} onChange={(v) => setBoxes(Math.max(1, v))} min={1} fmt={(v) => `${v} กล่อง`} w={70} /></div>
       <div class="card row" style={{ padding: '8px 12px 8px 16px', justifyContent: 'space-between' }}><span class="t16">เก็บได้</span><Stepper value={keep} onChange={(v) => setKeep(Math.max(1, v))} min={1} fmt={(v) => `${v} วัน`} w={70} /></div>
       <div style={{ background: 'var(--ink)', color: '#fff', borderRadius: 22, padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
         <span style={{ fontSize: 13, fontWeight: 600, color: '#C9C6BD' }}>ต่อกล่อง</span>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8 }}>{([['kcal', tot.k], ['โปรตีน g', tot.p], ['คาร์บ g', tot.c], ['ไขมัน g', tot.f]] as const).map(([l, v]) => <span class="col"><span class="num" style={{ fontSize: 24, fontWeight: 600 }}>{Math.round(v / boxes)}</span><span style={{ fontSize: 12, color: '#C9C6BD' }}>{l}</span></span>)}</div>
+        {(() => { const c = rows.reduce((a, r) => { const it = r.pid ? pantry.value.find((p) => p.id === r.pid) : null, cg = it ? costPerGram(it) : null; return a + (cg ? cg * r.g : 0); }, 0); return c > 0 ? <span style={{ fontSize: 13.5, color: '#C9C6BD' }}>ต้นทุนวัตถุดิบ ~<b class="num" style={{ color: '#fff' }}>{Math.round(c / boxes)} ฿</b> ต่อกล่อง (คิดเฉพาะของที่มีราคาในครัว)</span> : null; })()}
       </div>
       {prot && <div class="card" style={{ borderRadius: 22, padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
         <span class="label" style={{ margin: 0 }}>คำนวณย้อนกลับ</span>
@@ -158,6 +175,7 @@ export function Shop() {
   return (
     <div class="screen sub" style={{ gap: 12 }}>
       <TopBar title="รายการซื้อของ" onBack={back} right={<span class="num muted" style={{ fontSize: 14, fontWeight: 600 }}>{done}/{items.length}</span>} />
+      <button class="card press row" style={{ minHeight: 56, padding: '0 14px', gap: 10, textAlign: 'left' }} onClick={() => push('pantry')}><Icon n="photo_camera" fill color="var(--food-ink)" /><span class="col grow"><span style={{ fontSize: 15, fontWeight: 600 }}>ซื้อมาแล้ว? ถ่ายใบเสร็จ</span><span class="muted" style={{ fontSize: 12.5 }}>เข้าครัว + บันทึกรายจ่าย + ติ๊กรายการนี้ให้เอง</span></span><Icon n="chevron_right" color="var(--ink-3)" /></button>
       <div class="row" style={{ gap: 8 }}><input class="field" value={add} onInput={(e) => setAdd((e.target as HTMLInputElement).value)} placeholder="เพิ่มของ เช่น อกไก่ 1 kg" onKeyDown={(e) => { if (e.key === 'Enter' && add.trim()) { shopping.value = [...shopping.value, { id: uid(), group: 'อื่นๆ', name: add.trim(), qty: '', done: false }]; setAdd(''); } }} /><button class="btn dark icon" style={{ height: 52, width: 52 }} onClick={() => { if (add.trim()) { shopping.value = [...shopping.value, { id: uid(), group: 'อื่นๆ', name: add.trim(), qty: '', done: false }]; setAdd(''); } }} aria-label="เพิ่ม"><Icon n="add" /></button></div>
       {groups.map((g) => (
         <div class="col" style={{ gap: 6 }}><span class="label" style={{ margin: 0 }}>{g}</span>

@@ -16,6 +16,7 @@ import { openWeigh } from '../sheets';
 import { useBack } from '../../ui/back';
 import { openTaskEditor } from '../task';
 import { openCategoryEditor } from '../money/catSheet';
+import { analyzeReceipt } from '../../domain/pantry';
 
 type Scr = 'sheet' | 'scan' | 'voice' | 'type' | 'result';
 const MEALS = ['เช้า', 'กลางวัน', 'เย็น', 'ว่าง'];
@@ -247,6 +248,7 @@ export function Capture() {
           <div class="row" style={{ gap: 8 }}><input class="field" value={hint} onInput={(e) => setHint((e.target as HTMLInputElement).value)} placeholder="เช่น นี่คือข้าวมันไก่ ไม่ใช่ข้าวหมูแดง" /><button class="btn dark" style={{ height: 52 }} disabled={aiBusy || !hint.trim()} onClick={reestimate}>{aiBusy ? <span class="spin" style={{ width: 18, height: 18, borderWidth: 2 }} /> : 'ประเมินใหม่'}</button></div>
         </div>}
       </>}
+      {p.kind === 'receipt' && imgData && <button class="btn soft" style={{ height: 52 }} disabled={aiBusy} onClick={async () => { setAiBusy(true); try { const r = await analyzeReceipt(imgData); if (!r.lines.length) toast('ไม่เจอรายการของในใบเสร็จ'); else { close(); push('receipt', { data: r }); } } catch (e) { toast(explain(e)); } finally { setAiBusy(false); } }}><Icon n="kitchen" size={20} />{aiBusy ? 'กำลังอ่านรายการ…' : 'อ่านเป็นรายการของ · เก็บเข้าครัว'}</button>}
       {p.money && (p.kind === 'slip' || p.kind === 'receipt' || !p.food) && <>
         <div class="card" style={{ borderRadius: 22, padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div class="row" style={{ gap: 14 }}>{img && <img src={img} style={{ width: 56, height: 72, objectFit: 'cover', borderRadius: 12, flex: 'none' }} />}<span class="col" style={{ gap: 2, minWidth: 0 }}><span class="num" style={{ fontSize: 40, fontWeight: 600, lineHeight: 1.1 }}>{p.money.amount.toLocaleString()}<span style={{ fontSize: 20, fontWeight: 500 }}> ฿</span></span><span class="t16">{p.money.merchant}</span><span class="cap muted">{p.money.account} · {p.money.income ? 'เงินเข้า' : 'จ่ายออก'}</span></span></div>
