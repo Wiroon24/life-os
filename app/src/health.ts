@@ -12,7 +12,7 @@ export const healthState = persisted<{ on: boolean; last: number; msg: string; c
 /** Daily numbers that have no home elsewhere: steps, resting heart rate, active kcal. */
 export const healthDaily = persisted<Record<string, { steps?: number; rhr?: number; kcal?: number }>>('healthDaily', {});
 
-export const BUILD = 'hc-2026-10-05c';
+export const BUILD = 'hc-2026-10-05d';
 /** Visible trace of what the native calls did, because the permission flow runs outside the WebView. */
 export const healthLog = signal<string[]>([]);
 const note = (s: string) => { healthLog.value = [...healthLog.value.slice(-14), `${new Date().toLocaleTimeString('th-TH')} ${s}`]; };
@@ -66,7 +66,7 @@ const iso = (d: Date) => d.toISOString();
 
 let busy = false;
 /** Pull the last `days` days from Health Connect. User-entered values always win; only empty slots are filled. */
-export async function syncHealth(force = false, days = 14) {
+export async function syncHealth(force = false, days = 30) {
   if (!isNative || !healthState.value.on || busy) return;
   if (!force && Date.now() - healthState.value.last < 15 * 60e3) return;
   busy = true;
@@ -76,7 +76,9 @@ export async function syncHealth(force = false, days = 14) {
     const range = { startDate: iso(start), endDate: iso(end) };
 
     // Sleep: cluster segments into nights, keep the longest per wake-up day.
-    const sl = (await h.readSamples({ dataType: 'sleep', ...range, limit: 1000, ascending: true })).samples
+    const rawSleep = (await h.readSamples({ dataType: 'sleep', ...range, limit: 1000, ascending: true })).samples;
+    note(`sleep: อ่านได้ ${rawSleep.length} ช่วง จาก ${[...new Set(rawSleep.map((x) => x.sourceName ?? x.sourceId ?? '?'))].join(', ') || '-'}`);
+    const sl = rawSleep
       .filter((s) => s.sleepState !== 'awake' && s.sleepState !== 'inBed')
       .map((s) => ({ a: new Date(s.startDate).getTime(), b: new Date(s.endDate).getTime() })).filter((s) => s.b > s.a).sort((x, y) => x.a - y.a);
     const clusters: { a: number; b: number; asleep: number }[] = [];
@@ -89,6 +91,7 @@ export async function syncHealth(force = false, days = 14) {
 
     // Weight
     const ws = (await h.readSamples({ dataType: 'weight', ...range, limit: 200, ascending: true })).samples;
+    note(`weight: อ่านได้ ${ws.length} ครั้ง จาก ${[...new Set(ws.map((x) => x.sourceName ?? x.sourceId ?? '?'))].join(', ') || '-'}`);
     let wn = 0; for (const s of ws) { const date = dayKey(new Date(s.startDate)); if (!weights.value.some((x) => x.date === date && x.source === 'health' && x.kg === Math.round(s.value * 10) / 10)) { logWeight(Math.round(s.value * 10) / 10, { source: 'health', date }); wn++; } }
     counts.weight = wn;
 
@@ -98,13 +101,14 @@ export async function syncHealth(force = false, days = 14) {
       try {
         const r = await h.queryAggregated({ dataType: type, ...range, bucket: 'day', aggregation: agg });
         for (const s of r.samples) { const k = dayKey(new Date(s.startDate)), v = Math.round(s.value); if (v > 0) daily[k] = { ...daily[k], [key]: v }; }
-        counts[key] = r.samples.length;
-      } catch { /* type not granted or no data */ }
+        counts[key] = r.samples.length; note(`${type}: ${r.samples.length} วัน`);
+      } catch (e) { note(`${type} ✗ ${e instanceof Error ? e.message : String(e)}`); }
     }
     healthDaily.value = daily;
 
     // Watch workouts: skip anything that overlaps a session logged in the app.
     const wo = (await h.queryWorkouts({ ...range, limit: 100, ascending: true })).workouts;
+    note(`workouts: อ่านได้ ${wo.length} รายการ จาก ${[...new Set(wo.map((x) => x.sourceName ?? x.sourceId ?? '?'))].join(', ') || '-'}`);
     const mine = workouts.value; let wc = 0; const add: Workout[] = [];
     for (const w of wo) {
       const t0 = new Date(w.startDate).getTime(), t1 = new Date(w.endDate).getTime(), id = 'hc:' + (w.platformId ?? t0);
@@ -113,7 +117,7 @@ export async function syncHealth(force = false, days = 14) {
     }
     if (add.length) workouts.value = [...workouts.value, ...add]; counts.workouts = wc;
     healthState.value = { ...healthState.value, last: Date.now(), msg: `ซิงก์ล่าสุด · นอน ${counts.sleep} คืน น้ำหนัก ${counts.weight} ครั้ง กิจกรรม ${counts.workouts} รายการ`, counts };
-  } catch (e) { healthState.value = { ...healthState.value, msg: `ซิงก์ไม่สำเร็จ: ${String(e).slice(0, 80)}` }; }
+  } catch (e) { note(`ซิงก์ ✗ ${e instanceof Error ? e.message : String(e)}`); healthState.value = { ...healthState.value, msg: `ซิงก์ไม่สำเร็จ: ${String(e).slice(0, 80)}` }; }
   finally { busy = false; }
 }
 
