@@ -5,7 +5,7 @@ import { effect, signal } from '@preact/signals';
 import { addTxn, parseNotification, txns } from './domain/money';
 import { appNow, blocksFor, statusOf, setStatus, template, days } from './domain/plan';
 import { dayKey, addDays } from './domain/time';
-import { notif } from './domain/reminders';
+import { notif, tune } from './domain/reminders';
 import { medLog, meds } from './domain/meds';
 import { workouts } from './domain/training';
 import { toast } from './store/ui';
@@ -71,9 +71,9 @@ async function scheduleAll() {
       if (statusOf(key, b, off ? 0 : undefined, off === 0)) continue;
       const topic = b.kind === 'workout' ? 'workout' : b.kind?.startsWith('med') ? 'meds' : b.kind === 'bill' ? 'bills' : b.kind === 'checkin' ? 'checkin' : 'blocks';
       if (!n.on[topic] || b.mute) continue;
-      const lead = b.lead ?? (topic === 'workout' ? 15 : 0), bypass = topic === 'meds';
+      const tn = tune(), lead = b.lead ?? tn.lead[topic] ?? 0, bypass = topic === 'meds';
       add(`${b.id}`, b.start - lead, b.title, b.sub, { blockId: b.id }, bypass);
-      if (off <= 1 && n.level === 1 && (topic === 'workout' || topic === 'meds')) [10, 20, 30].forEach((g, i) => add(`${b.id}:nag${i}`, b.start + g, i === 2 ? `ยังไม่ได้${b.title}เลยนะ อีก 10 นาทีจะบันทึกว่าพลาด` : `ยังไม่ได้${b.title}`, undefined, { blockId: b.id }, bypass));
+      if (off <= 1 && n.level === 1 && (topic === 'workout' || topic === 'meds')) Array.from({ length: tn.nagCount }, (_, j) => tn.nagGap * (j + 1)).forEach((g, i) => add(`${b.id}:nag${i}`, b.start + g, i === tn.nagCount - 1 ? `ยังไม่ได้${b.title}เลยนะ อีก ${tn.nagGap} นาทีจะบันทึกว่าพลาด` : `ยังไม่ได้${b.title}`, undefined, { blockId: b.id }, bypass));
     }
     if (n.on.brief && n.time.brief != null) add('brief', n.time.brief, 'สรุปตอนตื่น', 'แผนวันนี้ + 3 เรื่องสำคัญ', {});
   }

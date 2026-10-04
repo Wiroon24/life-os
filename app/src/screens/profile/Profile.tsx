@@ -10,7 +10,7 @@ import { meds } from '../../domain/meds';
 import { bills, categories, debts, fixedTotal } from '../../domain/money';
 import { program } from '../../domain/training';
 import { latestW } from '../../domain/body';
-import { notif, TOPICS } from '../../domain/reminders';
+import { notif, TOPICS, tune } from '../../domain/reminders';
 import { ensurePermission } from '../../store/notify';
 import { fromMin } from '../../domain/time';
 import type { Signal } from '@preact/signals';
@@ -103,10 +103,31 @@ export function Profile() {
             {t.time && n.time[t.k] != null && <div style={{ opacity: on ? 1 : 0.45 }}><Stepper value={n.time[t.k]!} onChange={(x) => (notif.value = { ...n, time: { ...n.time, [t.k]: (x + 1440) % 1440 } })} step={15} fmt={fromMin} w={52} /></div>}
             <Toggle on={on} label={t.l} onClick={() => (notif.value = { ...n, on: { ...n.on, [t.k]: !on } })} />
           </div>); })}</div>
+        {(() => { const tn = tune(), set = (patch: object) => (notif.value = { ...n, ...patch } as typeof n);
+          const row = (l: string, s: string, node: preact.ComponentChild) => <div class="row" style={{ gap: 10, minHeight: 64 }}><span class="col grow"><span style={{ fontSize: 15.5, fontWeight: 600 }}>{l}</span><span class="muted" style={{ fontSize: 12.5 }}>{s}</span></span>{node}</div>;
+          return <>
+            <span class="muted" style={{ fontSize: 13, fontWeight: 600, padding: '0 4px', marginTop: 4 }}>เตือนล่วงหน้า (ก่อนเวลาเริ่ม)</span>
+            <div class="card" style={{ padding: '2px 14px' }}>
+              {([['workout', 'ซ้อม'], ['meds', 'ยาและสกินแคร์'], ['bills', 'บิล'], ['blocks', 'รายการอื่น']] as const).map(([k, l]) => row(l, 'ตั้งแยกรายการได้ในหน้าแก้ไขของแต่ละรายการ', <Stepper value={tn.lead[k]} onChange={(x) => set({ lead: { ...tn.lead, [k]: Math.max(0, x) } })} step={5} fmt={(v) => (v ? `${v} นาที` : 'ตรงเวลา')} w={84} />))}
+            </div>
+            {n.level === 1 && <>
+              <span class="muted" style={{ fontSize: 13, fontWeight: 600, padding: '0 4px', marginTop: 4 }}>การทวง (ซ้อมและยา)</span>
+              <div class="card" style={{ padding: '2px 14px' }}>
+                {row('ทวงทุก', 'ห่างกันกี่นาที', <Stepper value={tn.nagGap} onChange={(x) => set({ nagGap: Math.max(5, x) })} step={5} fmt={(v) => `${v} นาที`} w={84} />)}
+                {row('ทวงกี่ครั้ง', 'ครั้งสุดท้ายจะแจ้งว่าจะบันทึกว่าพลาด', <Stepper value={tn.nagCount} onChange={(x) => set({ nagCount: Math.min(6, Math.max(1, x)) })} step={1} fmt={(v) => `${v} ครั้ง`} w={84} />)}
+              </div>
+            </>}
+            <span class="muted" style={{ fontSize: 13, fontWeight: 600, padding: '0 4px', marginTop: 4 }}>เตือนบันทึกอาหาร</span>
+            <div class="card" style={{ padding: '2px 14px' }}>
+              {row('ทักถ้าไม่บันทึกนาน', 'นับจากมื้อล่าสุด', <Stepper value={tn.foodGap} onChange={(x) => set({ foodGap: Math.max(60, x) })} step={30} fmt={(v) => `${v / 60} ชม.`} w={84} />)}
+              {row('เริ่มทัก', 'ไม่ทักก่อนเวลานี้', <Stepper value={tn.foodFrom} onChange={(x) => set({ foodFrom: (x + 1440) % 1440 })} step={30} fmt={fromMin} w={64} />)}
+              {row('เลิกทัก', 'ไม่ทักหลังเวลานี้', <Stepper value={tn.foodTo} onChange={(x) => set({ foodTo: (x + 1440) % 1440 })} step={30} fmt={fromMin} w={64} />)}
+            </div>
+          </>; })()}
         <span class="muted" style={{ fontSize: 13, fontWeight: 600, padding: '0 4px', marginTop: 4 }}>ช่วงห้ามรบกวน</span>
         <div class="card" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>{(['เริ่ม', 'ถึง'] as const).map((l, i) => <div class="col" style={{ gap: 4 }}><span class="muted" style={{ fontSize: 12.5, fontWeight: 600 }}>{l}</span><Stepper value={n.dnd[i]} onChange={(x) => { const d2 = [...n.dnd] as [number, number]; d2[i] = (x + 1440) % 1440; notif.value = { ...n, dnd: d2 }; }} step={15} fmt={fromMin} w={60} /></div>)}</div>
-          <span class="muted" style={{ fontSize: 13, lineHeight: 1.5 }}>ยกเว้นเตือนทายาก่อนนอน · แอป Android จะส่งแจ้งเตือนได้แม้ปิดแอป ตอนนี้เตือนได้ขณะเปิดแอปอยู่</span>
+          <span class="muted" style={{ fontSize: 13, lineHeight: 1.5 }}>ยกเว้นเตือนทายาก่อนนอน · แอป Android จะส่งแจ้งเตือนได้แม้ปิดแอป ถ้าติดตั้งแอปบนเครื่อง ระบบจะตั้งเตือนล่วงหน้าไว้ให้ 7 วัน</span>
         </div>
       </>}
 

@@ -8,8 +8,8 @@ import { pending } from './money';
 
 export type Topic = 'workout' | 'meds' | 'brief' | 'food' | 'water' | 'money' | 'bills' | 'checkin' | 'blocks';
 export const TOPICS: { k: Topic; l: string; s: string; time?: boolean }[] = [
-  { k: 'workout', l: 'ซ้อม', s: 'ก่อนเริ่ม 15 นาที' }, { k: 'meds', l: 'ยาและสกินแคร์', s: 'เช้าและก่อนนอน · ทวงจนกว่าจะติ๊ก' },
-  { k: 'brief', l: 'สรุปเช้า', s: 'นอน · ซ้อมวันนี้ · ใช้ได้', time: true }, { k: 'food', l: 'อาหาร', s: 'ทักถ้าไม่บันทึก 3 ชม.' },
+  { k: 'workout', l: 'ซ้อม', s: 'เตือนก่อนเริ่มตามที่ตั้ง' }, { k: 'meds', l: 'ยาและสกินแคร์', s: 'เช้าและก่อนนอน · ทวงจนกว่าจะติ๊ก' },
+  { k: 'brief', l: 'สรุปเช้า', s: 'นอน · ซ้อมวันนี้ · ใช้ได้', time: true }, { k: 'food', l: 'อาหาร', s: 'ทักถ้าไม่บันทึกนาน' },
   { k: 'water', l: 'น้ำ', s: 'ทุก 2 ชม. ถ้ายังไม่ถึงเป้า' }, { k: 'money', l: 'เงินรอยืนยัน', s: 'เมื่อมีรายการใหม่' },
   { k: 'bills', l: 'บิล', s: 'วันครบกำหนด', time: true }, { k: 'checkin', l: 'เช็กอินสัปดาห์', s: 'วันอาทิตย์', time: true },
   { k: 'blocks', l: 'รายการอื่นในตาราง', s: 'มื้อ ลุกเดิน งาน ตามเวลา' },
@@ -19,6 +19,9 @@ export const notif = persisted('notifSettings', {
   on: { workout: true, meds: true, brief: true, food: true, water: false, money: true, bills: true, checkin: true, blocks: true } as Record<Topic, boolean>,
   time: { brief: 465, bills: 540, checkin: 1140 } as Partial<Record<Topic, number>>,
 });
+/** Tunables with fallbacks so settings saved by older versions keep working. */
+export const DEF = { lead: { workout: 15, meds: 0, bills: 0, blocks: 0 } as Record<string, number>, nagGap: 10, nagCount: 3, foodGap: 180, foodFrom: 900, foodTo: 1260 };
+export const tune = () => { const n = notif.value as typeof notif.value & Partial<typeof DEF>; return { lead: { ...DEF.lead, ...(n.lead ?? {}) }, nagGap: n.nagGap ?? DEF.nagGap, nagCount: n.nagCount ?? DEF.nagCount, foodGap: n.foodGap ?? DEF.foodGap, foodFrom: n.foodFrom ?? DEF.foodFrom, foodTo: n.foodTo ?? DEF.foodTo }; };
 const fired = persisted<Record<string, number>>('firedReminders', {});
 
 const inDnd = (m: number) => { const [a, b] = notif.value.dnd, x = m % 1440; return a < b ? x >= a && x < b : x >= a || x < b; };
@@ -35,18 +38,18 @@ export function checkReminders() {
     if (statusOf(k, b, now)) continue;
     const topic: Topic = b.kind === 'workout' ? 'workout' : b.kind?.startsWith('med') ? 'meds' : b.kind === 'bill' ? 'bills' : b.kind === 'checkin' ? 'checkin' : 'blocks';
     if (!n.on[topic] || b.mute) continue;
-    const lead = b.lead ?? (topic === 'workout' ? 15 : 0);
+    const tn = tune(), lead = b.lead ?? tn.lead[topic] ?? 0;
     if (now >= b.start - lead && now <= b.start + 5) fire(b.id, b.title, b.sub, topic === 'meds');
     // Escalation (strict): re-nag at +10/+20/+30 min for workout & meds until done.
-    if (n.level === 1 && (topic === 'workout' || topic === 'meds')) for (const [i, gap] of [10, 20, 30].entries()) {
+    if (n.level === 1 && (topic === 'workout' || topic === 'meds')) for (const [i, gap] of Array.from({ length: tn.nagCount }, (_, j) => tn.nagGap * (j + 1)).entries()) {
       if (now >= b.start + gap && now <= b.start + gap + 5) {
         if (topic === 'meds' && medProgress(b.kind === 'meds-night' ? 'night' : 'morning', d).total === medProgress(b.kind === 'meds-night' ? 'night' : 'morning', d).done) break;
-        fire(`${b.id}:nag${i}`, i === 2 ? `ยังไม่ได้${b.title}เลยนะ อีก 10 นาทีจะบันทึกว่าพลาด` : `ยังไม่ได้${b.title}`, undefined, topic === 'meds');
+        fire(`${b.id}:nag${i}`, i === tn.nagCount - 1 ? `ยังไม่ได้${b.title}เลยนะ อีก ${tn.nagGap} นาทีจะบันทึกว่าพลาด` : `ยังไม่ได้${b.title}`, undefined, topic === 'meds');
       }
     }
   }
   if (n.on.brief && n.time.brief != null && now >= n.time.brief && now < n.time.brief + 60) fire('brief', 'สรุปตอนตื่น', 'แผนวันนี้ + 3 เรื่องสำคัญ');
-  if (n.on.food && now >= 15 * 60 && now < 21 * 60) { const last = entriesOn(d).at(-1); if (!last || now - toMin(last.time) >= 180) fire(`food:${Math.floor(now / 180)}`, 'ยังไม่ได้บันทึกอาหาร', 'กินอะไรไปหรือยัง'); }
+  if (n.on.food && now >= tune().foodFrom && now < tune().foodTo) { const last = entriesOn(d).at(-1); if (!last || now - toMin(last.time) >= tune().foodGap) fire(`food:${Math.floor(now / tune().foodGap)}`, 'ยังไม่ได้บันทึกอาหาร', 'กินอะไรไปหรือยัง'); }
   if (n.on.money) { const p = pending().length; if (p > 0) fire(`money:${p}`, `มีรายการรอยืนยัน ${p} รายการ`); }
   if (n.on.checkin && d.getDay() === 0 && n.time.checkin != null && now >= n.time.checkin && now < n.time.checkin + 60) fire('checkin', 'เช็กอินประจำสัปดาห์', '2 นาทีกับโค้ช');
 }
