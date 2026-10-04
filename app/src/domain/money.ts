@@ -15,7 +15,7 @@ export interface Txn { id: string; ts: number; amount: number; inc: boolean; mer
 export interface Debt extends Item { name: string; icon: string; balance: number; orig: number; payment: number; rate: number; rateAfter?: number; fixedUntil?: string; meta: string; inBills: boolean; type?: string; rateType?: 'reducing' | 'fixed'; monthsLeft?: number }
 
 const SEED_EXTRA_RAW: [string, string, string, string, string, CatKind][] = [
-  ['ลงทุน', 'trending_up', '#E6F6FB', '#0B6E8A', '#22A6C9', 'invest'], ['ย้ายบัญชี', 'swap_horiz', '#EFEDE7', '#6B6962', '#A3A097', 'transfer'], ['จ่ายบัตร/หนี้', 'credit_score', '#EFEDE7', '#6B6962', '#A3A097', 'transfer'],
+  ['เงินเดือน', 'payments', '#E3F5E8', '#137A38', '#22B455', 'transfer'], ['ลงทุน', 'trending_up', '#E6F6FB', '#0B6E8A', '#22A6C9', 'invest'], ['ย้ายบัญชี', 'swap_horiz', '#EFEDE7', '#6B6962', '#A3A097', 'transfer'], ['จ่ายบัตร/หนี้', 'credit_score', '#EFEDE7', '#6B6962', '#A3A097', 'transfer'],
 ];
 const SEED_EXTRA: ReturnType<typeof C>[] = [];
 const C = (name: string, budget: number, icon: string, soft: string, ink: string, bar: string, kind: CatKind = 'expense') => ({ name, budget, icon, soft, ink, bar, kind, income: kind === 'income' });
@@ -66,11 +66,20 @@ export const owedOf = (d: Debt) => (isFixed(d) ? d.payment * (d.monthsLeft ?? Ma
 export const lockedInterest = (d: Debt) => (isFixed(d) ? Math.max(0, owedOf(d) - d.balance) : 0);
 
 /* ---------- Cycle ---------- */
+/** Salary date in a month. 'eom' = the day before the last working day (Mon–Fri); if that is a weekend, the working day before it. Public holidays are not known. */
+export function paydayIn(y: number, mo: number) {
+  if ((profile.value.paydayMode ?? 'eom') === 'fixed') return new Date(y, mo, Math.min(profile.value.payday, new Date(y, mo + 1, 0).getDate()));
+  const d = new Date(y, mo + 1, 0);
+  while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() - 1);
+  d.setDate(d.getDate() - 1);
+  while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() - 1);
+  return d;
+}
 export function cycle(today = new Date()) {
-  const pd = profile.value.payday;
-  const start = new Date(today.getFullYear(), today.getMonth(), pd);
-  if (today.getDate() < pd) start.setMonth(start.getMonth() - 1);
-  const end = new Date(start); end.setMonth(end.getMonth() + 1); // exclusive
+  const t = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  let start = paydayIn(t.getFullYear(), t.getMonth());
+  if (t < start) start = paydayIn(t.getFullYear(), t.getMonth() - 1);
+  const end = paydayIn(start.getFullYear(), start.getMonth() + 1); // exclusive
   const totalDays = Math.round((end.getTime() - start.getTime()) / 864e5);
   const t0 = new Date(today.getFullYear(), today.getMonth(), today.getDate());
   const dayNo = Math.round((t0.getTime() - start.getTime()) / 864e5) + 1;
@@ -102,12 +111,19 @@ export function catSpend(name: string, c = cycle()) {
 }
 
 /* ---------- Transactions ---------- */
-export function guessCat(merchant: string, inc: boolean) {
+/** A deposit around payday close to the net salary (or labelled as salary) is the salary itself, which the plan already counts, so it must not be added again as income. */
+export const looksLikeSalary = (merchant: string, amount?: number, at = new Date()) => {
+  if (/เงินเดือน|salary|payroll/i.test(merchant)) return true;
+  const net = profile.value.netSalary, pd = paydayIn(at.getFullYear(), at.getMonth());
+  return amount != null && net > 0 && amount >= net * 0.85 && amount <= net * 1.15 && Math.abs(at.getTime() - pd.getTime()) <= 3 * 864e5;
+};
+export function guessCat(merchant: string, inc: boolean, amount?: number, ts?: number) {
   const m = merchant.toLowerCase().trim();
   if (catMemory.value[m]) return catMemory.value[m];
   const me = profile.value.name.trim().toLowerCase();
   if (me && m.includes(me)) return 'ย้ายบัญชี';
   if (/ซื้อกองทุน|กองทุน|หุ้น|bitkub|binance|dime|settrade|fund/i.test(m)) return 'ลงทุน';
+  if (inc && looksLikeSalary(merchant, amount, ts ? new Date(ts) : new Date())) return 'เงินเดือน';
   if (inc) return 'ขายของ';
   const rules: [RegExp, string][] = [
     [/grab\s*food|line\s*man|foodpanda|robinhood|ร้าน|ข้าว|ก๋วยเตี๋ยว|ส้มตำ|กาแฟ|cafe|coffee|starbucks|amazon|mk|kfc|mcdonald|pizza|food/i, 'อาหาร'],
@@ -121,7 +137,7 @@ export function guessCat(merchant: string, inc: boolean) {
 
 export function addTxn(t: Omit<Txn, 'id' | 'cat' | 'status'> & { cat?: string; status?: Txn['status'] }) {
   if (t.source === 'notif' && isDuplicate(t)) return txns.value.find((x) => x.raw && parseRaw(x.raw) && t.raw && dupKey(parseRaw(t.raw)!) === dupKey(parseRaw(x.raw)!)) ?? txns.value[0];
-  const tx: Txn = { id: uid(), status: 'pending', ...t, cat: t.cat ?? guessCat(t.merchant, t.inc) };
+  const tx: Txn = { id: uid(), status: 'pending', ...t, cat: t.cat ?? guessCat(t.merchant, t.inc, t.amount, t.ts) };
   txns.value = [tx, ...txns.value];
   return tx;
 }
@@ -193,7 +209,7 @@ addProvider((date) => upcomingBills(date, 0).map((b): Block => ({
 })));
 export const nextPayday = (today = new Date()) => cycle(today).end;
 export const daysToPayday = (today = new Date()) => Math.round((nextPayday(today).getTime() - new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime()) / 864e5);
-export const isPayday = (today = new Date()) => today.getDate() === profile.value.payday;
+export const isPayday = (today = new Date()) => paydayIn(today.getFullYear(), today.getMonth()).getDate() === today.getDate();
 
 /** Rough THB per foreign unit, used only to estimate card spend abroad (the real THB amount comes on the statement). */
 export const FX_THB: Record<string, number> = { USD: 33, EUR: 36, GBP: 42, JPY: 0.22, SGD: 25, CNY: 4.6, HKD: 4.3, AUD: 22, KRW: 0.024, MYR: 7.5 };

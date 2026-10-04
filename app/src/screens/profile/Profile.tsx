@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
-import { Icon, TopBar } from '../../ui/kit';
+import { Icon, TopBar, Seg } from '../../ui/kit';
 import { back, push } from '../../store/nav';
 import { openSheet, closeSheet, toast } from '../../store/ui';
 import { exportAll, resetAll, importAll } from '../../store/persist';
@@ -7,12 +7,12 @@ import { live, type Item } from '../../store/collection';
 import { profile, settings } from '../../domain/profile';
 import { template } from '../../domain/plan';
 import { meds } from '../../domain/meds';
-import { bills, categories, debts, fixedTotal } from '../../domain/money';
+import { bills, categories, debts, fixedTotal, paydayIn } from '../../domain/money';
 import { program } from '../../domain/training';
 import { latestW } from '../../domain/body';
 import { notif, TOPICS, tune } from '../../domain/reminders';
 import { ensurePermission } from '../../store/notify';
-import { fromMin } from '../../domain/time';
+import { fromMin, thDate } from '../../domain/time';
 import type { Signal } from '@preact/signals';
 import { Stepper } from '../sheets';
 import { isNative, captureStatus, openListenerSettings, listApps, setCapturePackages, setCaptureSenders } from '../../native';
@@ -231,15 +231,18 @@ function AISettings() {
 function editProfile() { openSheet({ title: 'แก้โปรไฟล์', tall: true, body: () => <ProfileEdit /> }); }
 function ProfileEdit() {
   const p = profile.value;
-  const [f, setF] = useState({ name: p.name, heightCm: p.heightCm, wake: p.wake, sleep: p.sleep, workStart: p.workStart, payday: p.payday, netSalary: p.netSalary });
+  const [f, setF] = useState({ name: p.name, heightCm: p.heightCm, wake: p.wake, sleep: p.sleep, workStart: p.workStart, payday: p.payday, netSalary: p.netSalary, paydayMode: (p.paydayMode ?? 'eom') as 'fixed' | 'eom' });
   const set = (k: keyof typeof f) => (e: Event) => setF({ ...f, [k]: (e.target as HTMLInputElement).value });
   return (
     <div class="col" style={{ gap: 12 }}>
       <label><span class="label">ชื่อเล่น</span><input class="field" value={f.name} onInput={set('name')} /></label>
       <div class="row" style={{ gap: 8 }}><label class="grow"><span class="label">ตื่น</span><input class="field" type="time" value={f.wake} onInput={set('wake')} /></label><label class="grow"><span class="label">นอน</span><input class="field" type="time" value={f.sleep} onInput={set('sleep')} /></label></div>
       <div class="row" style={{ gap: 8 }}><label class="grow"><span class="label">เริ่มงาน</span><input class="field" type="time" value={f.workStart} onInput={set('workStart')} /></label><label class="grow"><span class="label">ส่วนสูง (cm)</span><input class="field num" inputMode="numeric" value={f.heightCm} onInput={set('heightCm')} /></label></div>
-      <div class="row" style={{ gap: 8 }}><label class="grow"><span class="label">เงินเดือนสุทธิ</span><input class="field num" inputMode="numeric" value={f.netSalary} onInput={set('netSalary')} /></label><label style={{ width: 120 }}><span class="label">เข้าวันที่</span><input class="field num" inputMode="numeric" value={f.payday} onInput={set('payday')} /></label></div>
-      <button class="btn primary lg block" onClick={() => { profile.value = { ...p, ...f, heightCm: +f.heightCm || p.heightCm, payday: Math.min(28, Math.max(1, +f.payday || p.payday)), netSalary: +f.netSalary || p.netSalary }; closeSheet(); toast('บันทึกแล้ว'); }}>บันทึก</button>
+      <div class="row" style={{ gap: 8 }}><label class="grow"><span class="label">เงินเดือนสุทธิ</span><input class="field num" inputMode="numeric" value={f.netSalary} onInput={set('netSalary')} /></label></div>
+      <div><span class="label">เงินเดือนเข้า</span><Seg value={f.paydayMode} onChange={(v) => setF({ ...f, paydayMode: v })} options={[['eom', 'วันก่อนวันทำการสุดท้ายของเดือน'], ['fixed', 'วันที่คงที่']]} />
+        {f.paydayMode === 'fixed' && <input class="field num" style={{ marginTop: 8 }} inputMode="numeric" value={f.payday} onInput={set('payday')} aria-label="วันที่เงินเดือนเข้า" />}
+        <span class="muted" style={{ fontSize: 12.5, display: 'block', marginTop: 6 }}>รอบนี้เข้า {thDate(paydayIn(new Date().getFullYear(), new Date().getMonth()))} · ยังไม่รู้วันหยุดนักขัตฤกษ์ ถ้าเข้าวันอื่นให้ปรับเป็นวันที่คงที่</span></div>
+      <button class="btn primary lg block" onClick={() => { profile.value = { ...p, ...f, heightCm: +f.heightCm || p.heightCm, payday: Math.min(31, Math.max(1, +f.payday || p.payday)), netSalary: +f.netSalary || p.netSalary }; closeSheet(); toast('บันทึกแล้ว'); }}>บันทึก</button>
       <button class="btn soft" style={{ color: 'var(--error)' }} onClick={() => { if (confirm('ลบข้อมูลทั้งหมดในเครื่องนี้และเริ่มใหม่? (แนะนำให้สำรองข้อมูลก่อน)')) { resetAll(); location.reload(); } }}>ลบข้อมูลทั้งหมดและเริ่มใหม่</button>
     </div>
   );

@@ -11,7 +11,8 @@ export interface Profile {
   wake: string;      // HH:MM target
   sleep: string;     // HH:MM target (may be after midnight)
   workStart: string;
-  payday: number;    // day of month salary arrives
+  payday: number;    // day of month salary arrives (used when paydayMode is 'fixed')
+  paydayMode?: 'fixed' | 'eom'; // 'eom' = the day before the last working day (Mon–Fri) of the month
   netSalary: number;
   equipment: string[];
   injuries: string[];
@@ -30,6 +31,7 @@ export const profile = persisted<Profile>('profile', {
   sleep: '00:15',
   workStart: '10:00',
   payday: 28,
+  paydayMode: 'eom',
   netSalary: 33618,
   equipment: ['ดัมเบล', 'ม้านั่ง', 'ลู่วิ่ง', 'Leg extension', 'Lat pulldown'],
   injuries: ['ข้อเท้าพลิก', 'ปวดเอ็นลูกสะบ้า', 'ปวดเอ็นน่อง'],
