@@ -6,7 +6,7 @@ import { exportAll, resetAll, importAll } from '../../store/persist';
 import { live, type Item } from '../../store/collection';
 import { profile, settings } from '../../domain/profile';
 import { template } from '../../domain/plan';
-import { meds } from '../../domain/meds';
+import { meds, restoreMed } from '../../domain/meds';
 import { bills, categories, debts, fixedTotal, paydayIn } from '../../domain/money';
 import { program } from '../../domain/training';
 import { latestW } from '../../domain/body';
@@ -33,8 +33,8 @@ const Row = ({ icon, l, sub, soft, ink, go, i }: { icon: string; l: string; sub:
 );
 
 // Every soft-deletable collection, so the trash can restore anything.
-const BINS: { name: string; icon: string; s: Signal<(Item & { name?: string; title?: string })[]> }[] = [
-  { name: 'ตารางวัน', icon: 'calendar_view_day', s: template as never }, { name: 'ยาและผิว', icon: 'medication', s: meds as never },
+const BINS: { name: string; icon: string; s: Signal<(Item & { name?: string; title?: string })[]>; restore?: (id: string) => void }[] = [
+  { name: 'ตารางวัน', icon: 'calendar_view_day', s: template as never }, { name: 'ยาและผิว', icon: 'medication', s: meds as never, restore: restoreMed },
   { name: 'บิล', icon: 'event', s: bills as never }, { name: 'หมวดเงิน', icon: 'label', s: categories as never }, { name: 'หนี้', icon: 'trending_down', s: debts as never },
 ];
 
@@ -147,7 +147,7 @@ export function Profile() {
           <div class="card row" style={{ borderRadius: 18, padding: '10px 10px 10px 12px', minHeight: 68 }}>
             <span class="medal" style={{ width: 36, height: 36, background: 'var(--surface-2)', color: 'var(--ink-2)' }}><Icon n={t.bin.icon} size={20} /></span>
             <span class="col grow"><span style={{ fontSize: 15, fontWeight: 600 }}>{t.name ?? t.title ?? 'รายการ'}</span><span style={{ fontSize: 12.5, color: left <= 5 ? '#B83A1C' : 'var(--ink-2)' }}>{t.bin.name} · เหลือ {left} วัน</span></span>
-            <button class="btn dark" style={{ height: 40, fontSize: 14 }} onClick={() => { t.bin.s.value = t.bin.s.value.map((x) => (x.id === t.id ? { ...x, deletedAt: undefined } : x)); toast('กู้คืนแล้ว'); }}>กู้คืน</button>
+            <button class="btn dark" style={{ height: 40, fontSize: 14 }} onClick={() => { if (t.bin.restore) t.bin.restore(t.id); else t.bin.s.value = t.bin.s.value.map((x) => (x.id === t.id ? { ...x, deletedAt: undefined } : x)); toast('กู้คืนแล้ว'); }}>กู้คืน</button>
           </div>); })}
       </>}
     </div>

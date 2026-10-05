@@ -1,6 +1,7 @@
 import { persisted, uid } from '../store/persist';
 import { live, type Item } from '../store/collection';
 import { dayKey } from './time';
+import { normalizeOrder, permuteOrder, orderBefore, orderAtEnd } from './order';
 
 export type Slot = 'morning' | 'night' | 'timed';
 export type Sched = 'daily' | 'alt' | 'days';
@@ -26,6 +27,46 @@ const SEED: Omit<Med, 'id' | 'order'>[] = [
 ];
 
 export const meds = persisted<Med[]>('meds', () => SEED.map((x, i) => ({ ...x, id: uid(), order: i + 1, source: 'seed' })));
+// One-time repair for old/imported data with missing or duplicate `order` (no-op when already valid; keeps every record).
+{ const n = normalizeOrder(meds.value); if (n !== meds.value) meds.value = n; }
+
+/** One slot's live items in the user's order (the order every list, the Today card and reminders follow). */
+export const slotItems = (slot: Slot) => live(meds.value).filter((m) => m.slot === slot);
+
+/**
+ * Reorder one slot to `ids` (user action only). Order is user-owned: AI/coach code must NOT call this or
+ * rewrite `order`; coach-created meds go to the end via `add(meds, data)` (default append).
+ * Reuses the slot's existing order values, so other slots and trashed items keep their place.
+ */
+export function setSlotOrder(slot: Slot, ids: string[]) {
+  const next = permuteOrder(slotItems(slot), ids), now = Date.now();
+  meds.value = meds.value.map((m) => { const o = next.get(m.id); return o != null && o !== m.order ? { ...m, order: o, updatedAt: now } : m; });
+}
+
+/** Swap with the neighbour above (-1) or below (+1) inside the slot. */
+export function moveMed(slot: Slot, id: string, delta: -1 | 1) {
+  const ids = slotItems(slot).map((m) => m.id), i = ids.indexOf(id), j = i + delta;
+  if (i < 0 || j < 0 || j >= ids.length) return;
+  [ids[i], ids[j]] = [ids[j], ids[i]];
+  setSlotOrder(slot, ids);
+}
+
+/** Insert a new user item just before `beforeId` within the slot (end of slot if not found). */
+export function insertMedBefore(slot: Slot, data: Omit<Med, 'id' | 'order' | 'slot'>, beforeId: string): Med {
+  const scoped = slotItems(slot), i = scoped.findIndex((m) => m.id === beforeId);
+  const item: Med = { source: 'user', ...data, slot, id: uid(), order: orderBefore(scoped, i < 0 ? scoped.length : i), updatedAt: Date.now() };
+  meds.value = [...meds.value, item];
+  return item;
+}
+
+/** Order value after every med (trashed ones included), i.e. the end of any slot. */
+export const appendMedOrder = () => orderAtEnd(meds.value);
+
+/** Trash restore: bring it back at the end of its slot. (The 5-second undo keeps the old spot instead.) */
+export function restoreMed(id: string) {
+  const order = appendMedOrder();
+  meds.value = meds.value.map((m) => (m.id === id ? { ...m, deletedAt: undefined, order, updatedAt: Date.now() } : m));
+}
 /** medLog[dateKey][medId] = true */
 export const medLog = persisted<Record<string, Record<string, boolean>>>('medLog', {});
 

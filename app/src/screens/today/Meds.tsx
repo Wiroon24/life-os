@@ -2,11 +2,12 @@ import { useState } from 'preact/hooks';
 import { Icon, Check, Burst, TopBar, EditToggle } from '../../ui/kit';
 import { back } from '../../store/nav';
 import { openSheet, closeSheet, toast } from '../../store/ui';
-import { add, remove, update, live } from '../../store/collection';
+import { add, remove, update } from '../../store/collection';
 import { addDays, thDate } from '../../domain/time';
 import { appNow } from '../../domain/plan';
 import { useBack } from '../../ui/back';
-import { meds, medsFor, isTaken, toggleMed, isEvenDay, medStreak, type Med, type Slot, type Sched } from '../../domain/meds';
+import { useDragReorder } from '../../ui/reorder';
+import { meds, medsFor, isTaken, toggleMed, isEvenDay, medStreak, slotItems, setSlotOrder, moveMed, insertMedBefore, appendMedOrder, type Med, type Slot, type Sched } from '../../domain/meds';
 
 const SCHED: Record<Sched, string> = { daily: 'ทุกวัน', alt: 'วันเว้นวัน', days: 'บางวัน' };
 const DOW = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
@@ -18,7 +19,8 @@ export function Meds({ slot: slot0 }: { slot?: Slot }) {
   const [bursts, setBursts] = useState<Record<string, number>>({});
   useBack(() => { if (edit) { setEdit(false); return true; } return false; }, edit);
   const date = day ? addDays(appNow(), 1) : appNow(), even = isEvenDay(date);
-  const items = medsFor(slot, date), all = live(meds.value).filter((m) => m.slot === slot);
+  const items = medsFor(slot, date), all = slotItems(slot);
+  const dr = useDragReorder({ ids: all.map((m) => m.id), onDrop: (ids) => { setSlotOrder(slot, ids); toast('เรียงลำดับแล้ว'); }, enabled: edit });
   const doneN = items.filter((m) => isTaken(date, m.id)).length, allDone = items.length > 0 && doneN === items.length;
   const altItem = items.find((m) => m.alt);
 
@@ -57,8 +59,8 @@ export function Meds({ slot: slot0 }: { slot?: Slot }) {
         {(edit ? all : items).map((m, i) => {
           const checked = isTaken(date, m.id), label = edit ? (m.alt ? m.alt.join(' / ') : m.name) : (m as ReturnType<typeof medsFor>[number]).label;
           return (
-            <div class="col">
-              {edit && i > 0 && <button style={{ height: 24, display: 'flex', alignItems: 'center', gap: 8, padding: '0 12px' }} onClick={() => { add(meds, { slot, name: 'รายการใหม่', sched: 'daily' }, all.indexOf(m)); toast('แทรกรายการแล้ว'); }}>
+            <div class="col" key={m.id} ref={edit ? dr.rowRef(m.id) : undefined} style={edit ? dr.rowStyle(m.id) : undefined}>
+              {edit && i > 0 && <button style={{ height: 24, display: 'flex', alignItems: 'center', gap: 8, padding: '0 12px', visibility: dr.dragging ? 'hidden' : 'visible' }} aria-label="แทรกรายการตรงนี้" onClick={() => { insertMedBefore(slot, { name: 'รายการใหม่', sched: 'daily' }, m.id); toast('แทรกรายการแล้ว'); }}>
                 <span style={{ flex: 1, height: 2, borderRadius: 2, background: 'var(--surface-2)' }} /><span style={{ width: 24, height: 24, borderRadius: 999, background: 'var(--ink)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icon n="add" size={18} /></span><span style={{ flex: 1, height: 2, borderRadius: 2, background: 'var(--surface-2)' }} /></button>}
               <div class="row" style={{ gap: 4, minHeight: 68, padding: '4px 4px 4px 0' }}>
                 {edit
@@ -71,6 +73,11 @@ export function Meds({ slot: slot0 }: { slot?: Slot }) {
                   {!edit && m.alt && <span style={{ display: 'inline-flex', alignSelf: 'flex-start', alignItems: 'center', gap: 4, background: 'var(--info-tint)', color: 'var(--info)', fontSize: 12, fontWeight: 600, padding: '3px 8px', borderRadius: 999, marginTop: 2 }}><Icon n="swap_horiz" size={14} />{even ? 'วันคู่' : 'วันคี่'} · พรุ่งนี้ {(m as ReturnType<typeof medsFor>[number]).otherLabel?.split(' ')[0]}</span>}
                 </button>
                 {edit && <button class="chip" style={{ height: 36 }} onClick={() => update(meds, m.id, { sched: m.sched === 'daily' ? 'alt' : m.sched === 'alt' ? 'days' : 'daily', days: m.days ?? [1, 3, 5] })}>{m.sched === 'days' ? (m.days ?? []).map((d) => DOW[d]).join(' ') : SCHED[m.sched]}</button>}
+                {edit && <span class="col" style={{ flex: 'none', gap: 2 }}>
+                  <button class="btn icon press" style={{ width: 36, height: 30, opacity: i === 0 ? 0.3 : 1 }} disabled={i === 0} aria-label="เลื่อนขึ้น" onClick={() => moveMed(slot, m.id, -1)}><Icon n="expand_less" size={22} /></button>
+                  <button class="btn icon press" style={{ width: 36, height: 30, opacity: i === all.length - 1 ? 0.3 : 1 }} disabled={i === all.length - 1} aria-label="เลื่อนลง" onClick={() => moveMed(slot, m.id, 1)}><Icon n="expand_more" size={22} /></button>
+                </span>}
+                {edit && <span {...dr.handleProps(m.id)} aria-hidden="true" style={{ ...dr.handleProps(m.id).style, width: 40, height: 48, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icon n="drag_indicator" size={22} color="var(--ink-3)" /></span>}
               </div>
             </div>
           );
@@ -78,7 +85,7 @@ export function Meds({ slot: slot0 }: { slot?: Slot }) {
         {edit && <button style={{ minHeight: 56, margin: 4, borderRadius: 14, background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 16, fontWeight: 600 }} onClick={() => openMedEdit(null, slot)}><Icon n="add" size={22} />เพิ่มยา / ครีม</button>}
         {!edit && items.length === 0 && <div class="empty"><span class="muted">ยังไม่มีรายการรอบนี้</span><button class="btn soft" onClick={() => setEdit(true)}>เพิ่มรายการ</button></div>}
       </div>
-      <span class="row" style={{ gap: 8, fontSize: 13.5, lineHeight: 1.5, color: 'var(--ink-2)', padding: '0 4px', alignItems: 'flex-start' }}><Icon n="info" size={18} />{edit ? 'แตะชื่อเพื่อแก้ · แตะชิปเพื่อเปลี่ยนรอบ (ทุกวัน / วันเว้นวัน / บางวัน)' : altItem ? `${altItem.alt![0]} กับ ${altItem.alt![1]} สลับกันวันเว้นวันอัตโนมัติ · กด “พรุ่งนี้” ดูล่วงหน้า` : 'ติ๊กแล้วแจ้งเตือนจะหยุดทวง'}</span>
+      <span class="row" style={{ gap: 8, fontSize: 13.5, lineHeight: 1.5, color: 'var(--ink-2)', padding: '0 4px', alignItems: 'flex-start' }}><Icon n="info" size={18} />{edit ? 'แตะชื่อเพื่อแก้ · แตะชิปเพื่อเปลี่ยนรอบ (ทุกวัน / วันเว้นวัน / บางวัน) · ลาก ⋮⋮ หรือกดลูกศรเพื่อเรียงลำดับ' : altItem ? `${altItem.alt![0]} กับ ${altItem.alt![1]} สลับกันวันเว้นวันอัตโนมัติ · กด “พรุ่งนี้” ดูล่วงหน้า` : 'ติ๊กแล้วแจ้งเตือนจะหยุดทวง'}</span>
     </div>
   );
 }
@@ -94,7 +101,7 @@ function MedEdit({ m, slot }: { m: Med | null; slot: Slot }) {
   const save = () => {
     const data = { slot: sl, time: sl === 'timed' ? time : undefined, name: altOn ? a1 || name : name, sub, sched, days, alt: altOn && a1 && a2 ? ([a1, a2] as [string, string]) : undefined };
     if (!data.name.trim()) return toast('ใส่ชื่อก่อน');
-    if (m) update(meds, m.id, data); else add(meds, data);
+    if (m) update(meds, m.id, sl !== m.slot ? { ...data, order: appendMedOrder() } : data); else add(meds, data);
     closeSheet(); toast('บันทึกแล้ว');
   };
   return (
