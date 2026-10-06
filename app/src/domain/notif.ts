@@ -6,13 +6,20 @@ export interface ParsedNotif {
 /** OTPs and verification texts must never become transactions (they often contain the amount too). */
 export const isOtp = (s: string) => /OTP|รหัสผ่านใช้ครั้งเดียว|ห้ามเปิดเผย|รหัสยืนยัน|verification code|one[- ]time/i.test(s);
 
+/**
+ * Bank apps also push ads that quote amounts ("ผ่อน 0% 3 เดือน … ขั้นต่ำ 1,000 บ."). Real transaction
+ * texts don't use this wording, so any match means "not a transaction".
+ */
+export const isPromo = (s: string) =>
+  /โปรโมชั่น|โปรฯ|ผ่อน(?:สบาย|ได้|ชำระ)?\s*0\s*%|\d+\s*%|ขั้นต่ำ|ส่วนลด|รับสิทธิ์|สิทธิพิเศษ|แคมเปญ|ลุ้น|สมัคร|เงื่อนไข|ทุกร้าน|ช้อปครบ|ใช้จ่ายครบ|เมื่อมียอด|ตั้งแต่วันนี้|ถึงวันที่|คลิก|กดเลย|ดูรายละเอียด|https?:\/\/|promo|discount|cashback|privilege|limited|offer|\bsale\b/i.test(s);
+
 const BANKS: [RegExp, string][] = [[/ktc|เคทีซี/i, 'KTC'], [/k\s?plus|กสิกร|kbank|make\s*by/i, 'กสิกร'], [/scb|ไทยพาณิชย์/i, 'SCB'], [/ktb|กรุงไทย/i, 'กรุงไทย'], [/bangkok\s*bank|ธนาคารกรุงเทพ|bualuang/i, 'กรุงเทพ'], [/true\s?money|ทรูมันนี่/i, 'TrueMoney']];
 const CUR = '(THB|USD|EUR|JPY|SGD|GBP|CNY|HKD|AUD|KRW|MYR)';
 
 /** `appLabel` is the sending app (e.g. 'MAKE by KBank'); it identifies the bank when the text itself does not. */
 export function parseNotification(text: string, appLabel = ''): ParsedNotif | null {
   const s = text.replace(/\s+/g, ' ').trim();
-  if (!s || isOtp(s)) return null;
+  if (!s || isOtp(s) || isPromo(s)) return null;
   // "ยอด 1,180 THB" / "ยอด 21.40 USD" (KTC) first, then "฿359" / "359.00 บาท".
   const m = s.match(new RegExp(`ยอด\\s*([\\d,]+(?:\\.\\d{1,2})?)\\s*${CUR}?`, 'i'))
     ?? s.match(new RegExp(`${CUR}\\s?([\\d,]+(?:\\.\\d{1,2})?)`, 'i'))
