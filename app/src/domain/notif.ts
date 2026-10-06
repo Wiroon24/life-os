@@ -26,14 +26,11 @@ export function parseNotification(text: string, appLabel = ''): ParsedNotif | nu
   if (!amount) return null;
   const inc = /เงินเข้า|รับโอน|ได้รับ|received|deposit|โอนเข้า|incoming/i.test(s);
   const account = BANKS.find(([r]) => r.test(s))?.[1] ?? BANKS.find(([r]) => r.test(appLabel))?.[1] ?? (appLabel.trim() || 'บัญชี');
-  const card = s.match(/X-?(\d{4})\b/i)?.[1];
+  // Card last4: "X-7292", "x7292", "*7292".
+  const card = s.match(/(?:\bX-?|\*)(\d{4})\b/i)?.[1];
   // "@SHOPEE *SHOPEE", "@ANTHROPIC +1415…" → stop at "*", "+", or a long digit run.
   const at = s.match(/@\s*([A-Za-z0-9ก-๙&.'\- ]+?)(?=\s*(?:[*+]|…|\d{7,})|$)/);
   const th = s.match(/(?:ที่|at|ร้าน|to|ให้|ไปยัง|จาก|from)\s+([A-Za-z0-9ก-๙*&.'\- ]{2,40}?)(?=\s(?:วันที่|เวลา|ยอด|คงเหลือ|on|\d{1,2}[/:])|[…;]|$|[.,])/i);
   const merchant = (at?.[1] ?? th?.[1] ?? (inc ? 'เงินเข้า' : `รายการจาก ${account}`)).trim();
   return { amount, cur, inc, merchant, account, card, raw: text };
 }
-
-/** Same purchase often arrives twice (bank SMS + bank app push). */
-export const dupKey = (p: Pick<ParsedNotif, 'amount' | 'cur' | 'merchant' | 'card' | 'account'>) =>
-  [p.account, p.card ?? '', p.cur, p.amount.toFixed(2), p.merchant.toLowerCase().replace(/[^a-z0-9ก-๙]/g, '')].join('|');

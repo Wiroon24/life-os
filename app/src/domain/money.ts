@@ -4,7 +4,7 @@ import { live } from '../store/collection';
 import { profile } from './profile';
 import { addProvider, type Block } from './plan';
 import { dayKey } from './time';
-import { parseNotification as parseRaw, dupKey } from './notif';
+import { parseNotification as parseRaw } from './notif';
 
 /** What a category means for the budget: expense counts against it, income adds to it, invest/transfer are money moving (not spending). */
 export type CatKind = 'expense' | 'income' | 'invest' | 'transfer';
@@ -140,7 +140,7 @@ export function addTxn(t: Omit<Txn, 'id' | 'cat' | 'status'> & { cat?: string; s
     // The same purchase may already exist from a scanned receipt/slip (same amount within 36 h).
     const slip = txns.value.find((x) => x.source === 'slip' && !x.inc === !t.inc && x.amount === t.amount && Math.abs(x.ts - t.ts) < 36 * 3600e3);
     if (slip) return slip;
-    if (isDuplicate(t)) return txns.value.find((x) => x.raw && parseRaw(x.raw) && t.raw && dupKey(parseRaw(t.raw)!) === dupKey(parseRaw(x.raw)!)) ?? txns.value[0];
+    const dup = findDuplicate(t); if (dup) return dup;
   }
   const tx: Txn = { id: uid(), status: 'pending', ...t, cat: t.cat ?? guessCat(t.merchant, t.inc, t.amount, t.ts) };
   txns.value = [tx, ...txns.value];
@@ -226,9 +226,19 @@ export function parseNotification(text: string, appLabel = ''): Omit<Txn, 'id' |
   return { ts: Date.now(), amount: foreign ? Math.round(p.amount * (FX_THB[p.cur] ?? 1)) : p.amount, inc: p.inc, merchant: p.merchant, account: p.account, card: p.card, raw: text, source: 'notif', ...(foreign ? { fx: { cur: p.cur, amt: p.amount } } : {}) };
 }
 
-/** True if the same purchase was already captured in the last 15 minutes (SMS + app push for one charge). */
-export function isDuplicate(t: Pick<Txn, 'amount' | 'merchant' | 'account' | 'raw' | 'fx'>, now = Date.now()) {
-  const p = t.raw ? parseRaw(t.raw) : null;
-  const key = p ? dupKey(p) : null;
-  return txns.value.some((x) => now - x.ts < 15 * 60e3 && (key && x.raw ? (() => { const q = parseRaw(x.raw!); return !!q && dupKey(q) === key; })() : x.amount === t.amount && x.merchant === t.merchant && x.account === t.account));
+/**
+ * One purchase often arrives on several channels (bank SMS + bank app push) with different sender
+ * apps and merchant text ("@SHOPEE" vs "@SHOPEE BANGKOK TH"), so merchant and package are ignored.
+ * Match: captured txn (pending or confirmed), same direction, same amount to the satang, same account,
+ * same card last4 when both have it, within 10 minutes. Based on persisted `txns`, so it survives restarts.
+ * Tradeoff: two genuinely separate same-amount purchases on the same card within 10 minutes collapse into one.
+ */
+const DUP_WINDOW = 10 * 60e3;
+const cardOf = (x: Pick<Txn, 'card' | 'raw'>) => x.card ?? (x.raw ? parseRaw(x.raw)?.card : undefined);
+export function findDuplicate(t: Pick<Txn, 'ts' | 'amount' | 'inc' | 'account' | 'card' | 'raw' | 'fx'>) {
+  const c = cardOf(t), cents = Math.round((t.fx?.amt ?? t.amount) * 100);
+  return txns.value.find((x) => (x.source === 'notif' || x.source === 'text') && !x.inc === !t.inc
+    && Math.round((x.fx?.amt ?? x.amount) * 100) === cents && (x.fx?.cur ?? 'THB') === (t.fx?.cur ?? 'THB')
+    && x.account === t.account && Math.abs(x.ts - t.ts) <= DUP_WINDOW
+    && (() => { const xc = cardOf(x); return !c || !xc || c === xc; })());
 }
