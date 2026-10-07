@@ -27,7 +27,7 @@ export JAVA_HOME=$(ls -d ~/.iam-toolchain/jdk*/Contents/Home | head -1) ANDROID_
 npx cap sync android && cd android && ./gradlew assembleDebug
 cp app/build/outputs/apk/debug/app-debug.apk ../dist-apk/Iam-debug.apk
 ```
-เวอร์ชัน APK ปัจจุบัน 1.3 (versionCode 4, minSdk 26) — เพิ่ม `versionCode` ทุกครั้งที่ปล่อย APK ใหม่
+เวอร์ชัน APK ปัจจุบัน 1.4 (versionCode 5, minSdk 26 · เพิ่มปลั๊กอินสแกนบาร์โค้ด ML Kit) — เพิ่ม `versionCode` ทุกครั้งที่ปล่อย APK ใหม่
 ผู้ใช้ติดตั้ง APK **ทับของเดิม** ห้ามถอนการติดตั้ง (ข้อมูลหาย)
 
 ## กฎที่ต้องรักษา (จากผู้ใช้)
@@ -53,8 +53,9 @@ cp app/build/outputs/apk/debug/app-debug.apk ../dist-apk/Iam-debug.apk
 ยา/สกินแคร์ตามช่วงเวลา, todo/กิจกรรม, เตือนน้ำ, ของในครัว+ใบเสร็จ+meal prep+ต้นทุน, โค้ช AI (เครื่องมือ 14 ตัว: บันทึก/วิเคราะห์/แก้โปรแกรม/เป้าอาหาร/ครัว)
 
 **ค้างอยู่ (เรียงตามความสำคัญ)**
-1. **Health Connect ได้สิทธิ์แล้วแต่ซิงก์ได้ 0 รายการ** — เวอร์ชันหน้าจอ `hc-2026-10-05d` มีกล่อง "บันทึกการทำงาน" ใน โปรไฟล์ > การเชื่อมต่อ
-   รอผู้ใช้ส่ง log หลังกด "ซิงก์ตอนนี้"; สงสัยว่านาฬิกาซิงก์ผ่าน Mi Fitness ไม่ใช่ Zepp ยังไม่ได้เปิดส่งเข้า Health Connect
+1. **Health Connect ได้ 0 รายการเพราะผู้ใช้ยังไม่ได้ใส่นาฬิกา (Amazfit Bip 3 ผ่าน Zepp)** ไม่ใช่บั๊ก Zepp อนุญาตเขียน HR/HRV/SpO2/อัตราหายใจ/RHR/นอน/องค์ประกอบร่างกายแล้ว
+   รอผู้ใช้กด "ตรวจ 7 วัน" (โปรไฟล์ > การเชื่อมต่อ, `auditHealth` ใน health.ts) แล้วเทียบกับแอป Zepp ก่อนทำคะแนน Sleep/Strain/Recovery
+   (การ์ด 3 วงในหน้าวันนี้: ผู้ใช้ขอให้เตรียม prompt สำหรับ Claude Design ตอนถึงเวลาออกแบบ)
 2. ตัวอ่านแจ้งเตือน TrueMoney Wallet ต้องการตัวอย่างข้อความแจ้งเตือนจริง (ตอนนี้รองรับ KTC, K PLUS/MAKE, SCB, กรุงไทย, กรุงเทพ)
 3. ยังไม่ได้ทดสอบบนเครื่องจริง: อ่านใบเสร็จด้วย AI, การเตือนน้ำ/ทวง, ปุ่มเชื่อมใบเสร็จกับแจ้งเตือนธนาคาร
 4. ต้นทุน AI ยังไม่มีตัวนับในแอป (เสนอไว้ ยังไม่ทำ), per-task model routing (Haiku สำหรับอ่านรูป) ยังไม่ทำ
