@@ -12,7 +12,7 @@ export const healthState = persisted<{ on: boolean; last: number; msg: string; c
 /** Daily numbers that have no home elsewhere: steps, resting heart rate, active kcal. */
 export const healthDaily = persisted<Record<string, { steps?: number; rhr?: number; kcal?: number }>>('healthDaily', {});
 
-export const BUILD = 'hc-2026-10-05d';
+export const BUILD = 'hc-2026-10-06a';
 /** Visible trace of what the native calls did, because the permission flow runs outside the WebView. */
 export const healthLog = signal<string[]>([]);
 const note = (s: string) => { healthLog.value = [...healthLog.value.slice(-14), `${new Date().toLocaleTimeString('th-TH')} ${s}`]; };
@@ -23,7 +23,11 @@ async function step<T>(name: string, p: Promise<T>, ms = 10000): Promise<T> {
     note(`${name} ✓ ${Date.now() - t0}ms ${JSON.stringify(r)?.slice(0, 90) ?? ''}`); return r;
   } catch (e) { note(`${name} ✗ ${e instanceof Error ? e.message : String(e)}`); throw e; }
 }
-const READ = ['sleep', 'weight', 'steps', 'restingHeartRate', 'calories', 'workouts'] as const;
+/** Synced into the app's own logs. */
+const SYNC = ['sleep', 'weight', 'steps', 'restingHeartRate', 'calories', 'workouts'] as const;
+/** Read only for the data check for now (future Strain/Recovery scores need them). */
+const AUDIT = ['heartRate', 'heartRateVariability', 'oxygenSaturation', 'respiratoryRate', 'bodyFat'] as const;
+const READ = [...SYNC, ...AUDIT] as const;
 type HealthPlugin = typeof import('@capgo/capacitor-health').Health;
 /** Never return or await the plugin proxy itself: Capacitor proxies answer `.then`, so a promise resolved with one never settles. Keep it inside a plain object. */
 let H: { api: HealthPlugin } | null = null;
@@ -51,7 +55,9 @@ export async function connectHealth() {
   const h = (await plugin()).api;
   healthState.value = { ...healthState.value, msg: 'กำลังขอสิทธิ์…' };
   try {
-    if (await refreshHealth()) { await syncHealth(true); return true; }
+    // Ask again when a newly added type (e.g. heart rate) isn't granted yet, not just when nothing is.
+    const cur = await step('checkAuthorization', h.checkAuthorization({ read: [...READ] as never }));
+    if (cur.readAuthorized.length > 0 && cur.readDenied.length === 0) { await refreshHealth(); await syncHealth(true); return true; }
     const r = await step('requestAuthorization', h.requestAuthorization({ read: [...READ] as never }), 120000);
     const ok = r.readAuthorized.length > 0;
     healthState.value = { ...healthState.value, on: ok, msg: ok ? `อนุญาตแล้ว ${r.readAuthorized.length} ประเภท${r.readDenied.length ? ` · ปฏิเสธ ${r.readDenied.join(', ')}` : ''}` : 'ยังไม่ได้อนุญาต' };
@@ -119,6 +125,58 @@ export async function syncHealth(force = false, days = 30) {
     healthState.value = { ...healthState.value, last: Date.now(), msg: `ซิงก์ล่าสุด · นอน ${counts.sleep} คืน น้ำหนัก ${counts.weight} ครั้ง กิจกรรม ${counts.workouts} รายการ`, counts };
   } catch (e) { note(`ซิงก์ ✗ ${e instanceof Error ? e.message : String(e)}`); healthState.value = { ...healthState.value, msg: `ซิงก์ไม่สำเร็จ: ${String(e).slice(0, 80)}` }; }
   finally { busy = false; }
+}
+
+/* ---------- Data check: what Health Connect really holds, and how dense/plausible it is ---------- */
+export interface AuditRow {
+  type: string; label: string; unit: string; n: number; days: number; perDay: number;
+  /** Median gap between consecutive points in minutes (how often the watch measures). */
+  gapMin: number | null; min: number | null; max: number | null;
+  sources: string[]; samples: string[]; warn: string[];
+}
+export const healthAudit = persisted<{ at: number; days: number; rows: AuditRow[] }>('healthAudit', { at: 0, days: 7, rows: [] });
+
+const AUDIT_META: Record<string, { label: string; unit: string; ok?: [number, number] }> = {
+  heartRate: { label: 'ชีพจร', unit: 'bpm', ok: [30, 220] }, restingHeartRate: { label: 'ชีพจรขณะพัก', unit: 'bpm', ok: [35, 100] },
+  heartRateVariability: { label: 'HRV', unit: 'ms', ok: [5, 250] }, oxygenSaturation: { label: 'SpO2', unit: '%', ok: [80, 100] },
+  respiratoryRate: { label: 'อัตราหายใจ', unit: 'ครั้ง/นาที', ok: [6, 40] }, steps: { label: 'ก้าว (รายการย่อย)', unit: 'ก้าว' },
+  calories: { label: 'kcal กิจกรรม', unit: 'kcal' }, weight: { label: 'น้ำหนัก', unit: 'kg', ok: [30, 250] }, bodyFat: { label: 'ไขมัน', unit: '%', ok: [3, 60] },
+  sleep: { label: 'การนอน (ช่วงย่อย)', unit: 'นาที' },
+};
+const hm = (iso: string) => { const d = new Date(iso); return `${d.getDate()}/${d.getMonth() + 1} ${d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}`; };
+
+/** Reads raw samples for the last `days` days and summarises each type. Nothing is written into the app's logs. */
+export async function auditHealth(days = 7) {
+  if (!isNative || !healthState.value.on) return;
+  const h = (await plugin()).api, range = { startDate: iso(new Date(Date.now() - days * 864e5)), endDate: iso(new Date()) };
+  const rows: AuditRow[] = [];
+  for (const type of Object.keys(AUDIT_META)) {
+    const m = AUDIT_META[type];
+    try {
+      const s = (await h.readSamples({ dataType: type as never, ...range, limit: 5000, ascending: true })).samples;
+      const isSleep = type === 'sleep';
+      const vals = s.map((x) => (isSleep ? (new Date(x.endDate).getTime() - new Date(x.startDate).getTime()) / 60e3 : type === 'oxygenSaturation' && x.value <= 1 ? x.value * 100 : x.value));
+      const ts = s.map((x) => new Date(x.startDate).getTime());
+      const gaps = ts.slice(1).map((t, i) => (t - ts[i]) / 60e3).filter((g) => g > 0 && g < 6 * 60).sort((a, b) => a - b);
+      const dayset = new Set(s.map((x) => dayKey(new Date(x.startDate))));
+      const warn: string[] = [];
+      if (m.ok) { const bad = vals.filter((v) => v < m.ok![0] || v > m.ok![1]).length; if (bad) warn.push(`${bad} ค่าอยู่นอกช่วงปกติ ${m.ok[0]}–${m.ok[1]}`); }
+      if (type === 'heartRate' && gaps.length && gaps[gaps.length >> 1] > 15) warn.push('วัดห่างเกิน 15 นาที คำนวณความหนักของวันได้แค่คร่าวๆ');
+      if (type === 'heartRateVariability' && s.length && s.length / Math.max(1, dayset.size) < 3) warn.push('น้อยกว่า 3 ค่าต่อวัน ใช้เป็นแนวโน้มได้ ไม่ละเอียด');
+      if (isSleep && s.length && !s.some((x) => x.sleepState && !['asleep', 'inBed', 'awake'].includes(x.sleepState))) warn.push('ไม่มีระยะหลับ (ลึก/REM)');
+      const r1 = (v: number) => Math.round(v * 10) / 10;
+      rows.push({
+        type, label: m.label, unit: m.unit, n: s.length, days: dayset.size, perDay: dayset.size ? Math.round(s.length / dayset.size) : 0,
+        gapMin: gaps.length ? r1(gaps[gaps.length >> 1]) : null, min: vals.length ? r1(Math.min(...vals)) : null, max: vals.length ? r1(Math.max(...vals)) : null,
+        sources: [...new Set(s.map((x) => x.sourceName ?? x.sourceId ?? '?'))],
+        samples: s.slice(-3).reverse().map((x, i) => `${hm(x.startDate)} · ${r1(vals[vals.length - 1 - i])}${isSleep && x.sleepState ? ` ${x.sleepState}` : ''}`), warn,
+      });
+      note(`ตรวจ ${type}: ${s.length} รายการ`);
+    } catch (e) {
+      rows.push({ type, label: m.label, unit: m.unit, n: 0, days: 0, perDay: 0, gapMin: null, min: null, max: null, sources: [], samples: [], warn: [`อ่านไม่ได้: ${e instanceof Error ? e.message : String(e)}`.slice(0, 90)] });
+    }
+  }
+  healthAudit.value = { at: Date.now(), days, rows };
 }
 
 export function initHealth() {

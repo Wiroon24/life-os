@@ -13,7 +13,7 @@ import { latestW } from '../../domain/body';
 import { notif, TOPICS, tune } from '../../domain/reminders';
 import { ensurePermission } from '../../store/notify';
 import { fromMin, thDate, dayKey } from '../../domain/time';
-import { healthState, healthDaily, healthAvailable, connectHealth, refreshHealth, healthLog, BUILD, syncHealth, openHealthSettings, lastDays } from '../../health';
+import { healthState, healthDaily, healthAvailable, connectHealth, refreshHealth, healthLog, BUILD, syncHealth, openHealthSettings, lastDays, auditHealth, healthAudit } from '../../health';
 import type { Signal } from '@preact/signals';
 import { Stepper } from '../sheets';
 import { isNative, captureStatus, openListenerSettings, listApps, setCapturePackages, setCaptureSenders } from '../../native';
@@ -174,6 +174,7 @@ function HealthSection() {
         {h.on && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 6 }}>
           {[['ก้าววันนี้', today.steps], ['ชีพจรพักล่าสุด', today.rhr ?? y.rhr], ['kcal กิจกรรม', today.kcal]].map(([l, v]) => <span class="col" style={{ background: 'var(--surface-2)', borderRadius: 12, padding: '8px 10px' }}><span class="muted" style={{ fontSize: 11.5 }}>{l}</span><span class="num" style={{ fontSize: 15, fontWeight: 600 }}>{v != null ? Number(v).toLocaleString() : '—'}</span></span>)}
         </div>}
+        {h.on && <HealthAudit busy={busy} go={go} />}
         <button class="small" style={{ alignSelf: 'flex-start', fontWeight: 600, textDecoration: 'underline' }} onClick={() => { toast('กำลังเปิด…'); void openHealthSettings(); }}>เปิดการตั้งค่า Health Connect</button>
         <div style={{ background: 'var(--surface-2)', borderRadius: 12, padding: '8px 10px', fontSize: 11.5, lineHeight: 1.5, wordBreak: 'break-all' }}><b>บันทึกการทำงาน · {BUILD}</b>{healthLog.value.length ? healthLog.value.map((l) => <div>{l}</div>) : <div class="muted">ยังไม่มี กดปุ่มด้านบนแล้วดูตรงนี้</div>}</div>
       </>}
@@ -287,4 +288,23 @@ function restore() {
     if (importAll(await f.text())) { toast('กู้คืนแล้ว กำลังเปิดแอปใหม่…'); setTimeout(() => location.reload(), 600); } else toast('ไฟล์นี้ไม่ใช่ไฟล์สำรองของ Iam');
   };
   i.click();
+}
+
+/** Raw Health Connect check: count, how often measured, range, sources, latest values. Compare a day with the Zepp app. */
+function HealthAudit({ busy, go }: { busy: boolean; go: (f: () => Promise<unknown>) => Promise<void> }) {
+  const a = healthAudit.value;
+  return <div class="col" style={{ gap: 8, background: 'var(--surface-2)', borderRadius: 14, padding: 12 }}>
+    <div class="row" style={{ justifyContent: 'space-between', gap: 8 }}>
+      <span class="col"><span style={{ fontSize: 14, fontWeight: 600 }}>ตรวจข้อมูลดิบ</span><span class="muted" style={{ fontSize: 11.5 }}>{a.at ? `${a.days} วันล่าสุด · ตรวจเมื่อ ${new Date(a.at).toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}` : 'ดูว่านาฬิกาส่งอะไรมา ถี่แค่ไหน ค่าสมเหตุสมผลไหม'}</span></span>
+      <button class="btn soft" style={{ height: 40, fontSize: 14, flex: 'none' }} disabled={busy} onClick={() => go(async () => { await auditHealth(7); toast('ตรวจแล้ว'); })}>ตรวจ 7 วัน</button>
+    </div>
+    {a.rows.map((r) => <div class="col" style={{ background: '#fff', borderRadius: 12, padding: '8px 10px', gap: 2 }}>
+      <div class="row" style={{ justifyContent: 'space-between' }}><span style={{ fontSize: 13.5, fontWeight: 600 }}>{r.label}</span><span class="num" style={{ fontSize: 13, fontWeight: 600, color: r.n ? 'var(--ink)' : 'var(--ink-2)' }}>{r.n ? `${r.n.toLocaleString()} รายการ · ${r.days} วัน` : 'ไม่มีข้อมูล'}</span></div>
+      {r.n > 0 && <span class="muted" style={{ fontSize: 11.5, lineHeight: 1.5 }}>
+        ~{r.perDay}/วัน{r.gapMin != null ? ` · วัดทุก ~${r.gapMin} นาที` : ''} · ต่ำสุด {r.min} สูงสุด {r.max} {r.unit} · จาก {r.sources.join(', ')}<br />ล่าสุด: {r.samples.join(' | ')}
+      </span>}
+      {r.warn.map((w) => <span style={{ fontSize: 11.5, color: '#B83A1C' }}>⚠ {w}</span>)}
+    </div>)}
+    {a.rows.length > 0 && <span class="muted" style={{ fontSize: 11.5, lineHeight: 1.5 }}>เลือกวันหนึ่งแล้วเทียบกับแอป Zepp ถ้าตัวเลขตรงกัน ข้อมูลนั้นใช้คำนวณคะแนนได้</span>}
+  </div>;
 }

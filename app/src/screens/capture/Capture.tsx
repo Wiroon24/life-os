@@ -17,8 +17,12 @@ import { useBack } from '../../ui/back';
 import { openTaskEditor } from '../task';
 import { openCategoryEditor } from '../money/catSheet';
 import { analyzeReceipt } from '../../domain/pantry';
+import { searchFood, saveProduct, type FoodRef } from '../../domain/foodDb';
+import { canScan, scanBarcode, lookupBarcode } from '../../domain/barcode';
 
-type Scr = 'sheet' | 'scan' | 'voice' | 'type' | 'result';
+type Scr = 'sheet' | 'scan' | 'voice' | 'type' | 'result' | 'search';
+const fromRef = (r: FoodRef): Parsed => ({ kind: 'food', confidence: 100, summary: r.name, food: { items: [{ name: r.name, qty: r.serving, kcal: r.k, protein: r.p, carb: r.c, fat: r.f }] }, money: null, inbody: null, watch: null, weight: null });
+const LABEL_HINT = 'รูปนี้คือฉลากโภชนาการของสินค้าบรรจุห่อ ให้ kind=food มี 1 รายการ ชื่อสินค้าตามฉลาก qty = "1 หน่วยบริโภค" และค่าต่อ 1 หน่วยบริโภคตามฉลาก';
 const MEALS = ['เช้า', 'กลางวัน', 'เย็น', 'ว่าง'];
 const KIND: Record<Kind, { l: string; icon: string; soft: string; ink: string }> = {
   food: { l: 'อาหาร', icon: 'restaurant', soft: ROLE.food.soft, ink: ROLE.food.ink }, slip: { l: 'สลิปโอนเงิน', icon: 'receipt_long', soft: ROLE.money.soft, ink: ROLE.money.ink },
@@ -68,7 +72,10 @@ export function Capture() {
   const [text, setText] = useState(''), [aiBusy, setAiBusy] = useState(false), [listening, setListening] = useState(false);
   const [imgData, setImgData] = useState<Img | null>(null), [hint, setHint] = useState(''), [when, setWhen] = useState(nowLocal());
   const file = useRef<HTMLInputElement>(null), gal = useRef<HTMLInputElement>(null), input = useRef<HTMLInputElement>(null), seq = useRef(0);
-  const reset = () => { setScr('sheet'); setImg(null); setP(null); setErr(null); setPortion(1); setMeal(defaultMeal()); setCat(null); setText(''); setImgData(null); setHint(''); setWhen(nowLocal()); setAiBusy(false); setListening(false); };
+  const [q, setQ] = useState(''), [ref, setRef] = useState<FoodRef | null>(null), [scanBusy, setScanBusy] = useState(false);
+  /** Barcode waiting for a nutrition-label photo (product not found online). */
+  const labelCode = useRef<string | null>(null);
+  const reset = () => { setQ(''); setRef(null); setScanBusy(false); labelCode.current = null; setScr('sheet'); setImg(null); setP(null); setErr(null); setPortion(1); setMeal(defaultMeal()); setCat(null); setText(''); setImgData(null); setHint(''); setWhen(nowLocal()); setAiBusy(false); setListening(false); };
   // The component stays mounted while closed, so state must be wiped on each open (otherwise the last result shows again).
   useEffect(() => { if (captureOpen.value) reset(); }, [captureOpen.value]);
   useBack(() => { if (scr !== 'sheet') { reset(); return true; } captureOpen.value = false; return true; }, captureOpen.value);
@@ -82,7 +89,12 @@ export function Capture() {
     try {
       const im = await fileToImg(f); setImg(im.url); setImgData({ data: im.data, media_type: im.media_type });
       if (!hasAI()) throw new Error('noai');
-      const r = await analyzeImage(im); setP(r); setCat(null); setPortion(1); setScr('result');
+      const code = labelCode.current;
+      const r = await analyzeImage(im, code ? LABEL_HINT : undefined); setP(r); setCat(null); setPortion(1); setScr('result');
+      // Remember the product so the next scan of this barcode is instant.
+      const it = r.food?.items[0];
+      if (code && it) { const pr: FoodRef = { name: it.name, serving: it.qty || '1 หน่วยบริโภค', k: Math.round(it.kcal), p: Math.round(it.protein), c: Math.round(it.carb), f: Math.round(it.fat), src: 'product', barcode: code }; saveProduct(pr); setRef(pr); }
+      labelCode.current = null;
       // A photo picked from the gallery keeps its own time, so past meals land on the right day.
       const taken = f.lastModified && Date.now() - f.lastModified > 10 * 60e3 ? new Date(f.lastModified) : new Date();
       setWhen(toLocal(taken)); setMeal(mealOf(taken.getHours()));
@@ -98,6 +110,23 @@ export function Capture() {
     const t = setTimeout(async () => { setAiBusy(true); try { const r = await analyzeText(text); if (my === seq.current) setP(r); } catch { /* keep local parse */ } finally { if (my === seq.current) setAiBusy(false); } }, 900);
     return () => clearTimeout(t);
   }, [text, scr]);
+
+  const pickRef = (r: FoodRef) => { setRef(r); setP(fromRef(r)); setPortion(1); setImg(null); setImgData(null); setWhen(nowLocal()); setMeal(defaultMeal()); setScr('result'); };
+  const doScan = async () => {
+    if (!canScan()) { toast('สแกนได้ในแอป Android เวอร์ชัน 1.4 ขึ้นไป'); return; }
+    setScanBusy(true);
+    try {
+      const code = await scanBarcode(); if (!code) return;
+      toast('กำลังค้นสินค้า…');
+      const r = await lookupBarcode(code).catch(() => null);
+      if (r && r.k > 0) { pickRef(r); return; }
+      // Not online (common for Thai products): read the nutrition label instead and remember it.
+      if (!hasAI()) { toast('ไม่เจอข้อมูลสินค้านี้ · ใส่ API key เพื่อให้ AI อ่านฉลากแทน'); return; }
+      labelCode.current = code; toast('ไม่เจอข้อมูลสินค้านี้ ถ่ายรูปฉลากโภชนาการแทนได้เลย');
+      file.current?.click();
+    } catch (e) { toast(e instanceof Error ? e.message : String(e)); }
+    finally { setScanBusy(false); }
+  };
 
   const startVoice = () => {
     const W = window as unknown as Record<string, unknown>; const SR = (W.SpeechRecognition ?? W.webkitSpeechRecognition) as (new () => { lang: string; interimResults: boolean; start(): void; onresult: (e: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void; onend: () => void }) | undefined;
@@ -158,6 +187,10 @@ export function Capture() {
           <button class="press" style={{ height: 64, borderRadius: 18, background: 'var(--bg)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, fontSize: 14.5, fontWeight: 600 }} onClick={startVoice}><Icon n="mic" fill size={24} />พูด</button>
           <button class="press" style={{ height: 64, borderRadius: 18, background: 'var(--bg)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, fontSize: 14.5, fontWeight: 600 }} onClick={() => { setText(''); setScr('type'); setTimeout(() => input.current?.focus(), 60); }}><Icon n="keyboard" size={24} />พิมพ์</button>
         </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: -10 }}>
+          <button class="press" style={{ height: 56, borderRadius: 18, background: ROLE.food.soft, color: ROLE.food.ink, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontSize: 14.5, fontWeight: 600 }} onClick={() => { setQ(''); setScr('search'); }}><Icon n="search" size={22} /><span style={{ color: 'var(--ink)' }}>ค้นหาอาหาร</span></button>
+          <button class="press" disabled={scanBusy} style={{ height: 56, borderRadius: 18, background: ROLE.food.soft, color: ROLE.food.ink, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontSize: 14.5, fontWeight: 600, opacity: scanBusy ? 0.6 : 1 }} onClick={doScan}><Icon n="barcode_scanner" size={22} /><span style={{ color: 'var(--ink)' }}>สแกนบาร์โค้ด</span></button>
+        </div>
         <div class="col" style={{ gap: 8 }}><span class="muted" style={{ fontSize: 13, fontWeight: 600 }}>แตะเดียวจบ</span>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 6 }}>{shortcuts.map((s) => <button class="press" style={{ minHeight: 84, borderRadius: 18, background: ROLE[s.role].soft, color: ROLE[s.role].ink, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px 4px' }} onClick={s.go}><Icon n={s.icon} fill size={26} /><span style={{ fontSize: 12.5, fontWeight: 600, lineHeight: 1.3, textAlign: 'center', color: 'var(--ink)' }}>{s.l}</span></button>)}</div>
         </div>
@@ -168,6 +201,36 @@ export function Capture() {
       </div>
     </div>
   );
+
+  /* ---------- Food search ---------- */
+  if (scr === 'search') {
+    const res = searchFood(q);
+    const tag = { mine: ['เคยกิน', ROLE.food.ink], product: ['สินค้า', ROLE.money.ink], db: ['', ''] } as const;
+    return layer(<>
+      {fileInput}
+      {head('ค้นหาอาหาร')}
+      <div style={{ padding: '12px 16px 4px' }}>
+        <div class="row" style={{ gap: 8, background: '#fff', borderRadius: 999, padding: '0 6px 0 16px', height: 52, boxShadow: 'inset 0 0 0 2px var(--ink)' }}>
+          <Icon n="search" size={22} color="var(--ink-2)" />
+          <input autoFocus value={q} onInput={(e) => setQ((e.target as HTMLInputElement).value)} placeholder="เช่น กะเพรา ข้าวมันไก่ ลาเต้" aria-label="ค้นหาอาหาร" style={{ flex: 1, minWidth: 0, border: 'none', outline: 'none', background: 'none', fontSize: 16 }} />
+          {q && <button class="btn icon" style={{ color: 'var(--ink-2)' }} onClick={() => setQ('')} aria-label="ล้าง"><Icon n="close" size={22} /></button>}
+          <button class="btn icon" style={{ color: 'var(--ink)' }} disabled={scanBusy} onClick={doScan} aria-label="สแกนบาร์โค้ด"><Icon n="barcode_scanner" size={22} /></button>
+        </div>
+      </div>
+      <div class="no-scrollbar" style={{ flex: 1, overflowY: 'auto', padding: '8px 16px calc(16px + env(safe-area-inset-bottom))', display: 'flex', flexDirection: 'column', gap: 2 }}>
+        {!q && <span class="muted" style={{ fontSize: 13, fontWeight: 600, padding: '4px 0' }}>เคยกินบ่อย · และเมนูทั่วไป</span>}
+        {res.map((r) => <button class="row" style={{ gap: 12, minHeight: 60, padding: '6px 4px 6px 0', borderRadius: 14, textAlign: 'left', boxShadow: 'inset 0 -1px 0 var(--surface-2)' }} onClick={() => pickRef(r)}>
+          <span class="medal" style={{ width: 36, height: 36, background: ROLE.food.soft, color: ROLE.food.ink }}><Icon n={r.src === 'product' ? 'barcode' : r.src === 'mine' ? 'history' : 'restaurant'} fill size={20} /></span>
+          <span class="col grow" style={{ minWidth: 0 }}><span style={{ fontSize: 15.5, fontWeight: 600 }}>{r.name}{tag[r.src][0] && <span style={{ fontSize: 11.5, fontWeight: 600, color: tag[r.src][1], marginLeft: 6 }}>{tag[r.src][0]}</span>}</span><span class="muted" style={{ fontSize: 12.5 }}>{r.serving} · โปรตีน {r.p} g</span></span>
+          <span class="num" style={{ fontSize: 15, fontWeight: 600, flex: 'none' }}>{r.k}<span class="muted" style={{ fontSize: 12, fontWeight: 500 }}> kcal</span></span>
+        </button>)}
+        {q.trim() && <div class="col" style={{ gap: 8, padding: '14px 0' }}>
+          {!res.length && <span class="muted" style={{ fontSize: 14 }}>ไม่เจอ “{q}” ในรายการ</span>}
+          <button class="btn soft" style={{ height: 52 }} onClick={() => { setText(q); setScr('type'); }}><Icon n="auto_awesome" size={20} />{hasAI() ? `ให้ AI ประมาณ “${q}”` : `พิมพ์ “${q}” เอง`}</button>
+        </div>}
+      </div>
+    </>);
+  }
 
   /* ---------- Scanning ---------- */
   if (scr === 'scan') return layer(<>
@@ -279,7 +342,12 @@ export function Capture() {
     </div>
     <div style={{ padding: '8px 16px calc(24px + env(safe-area-inset-bottom))' }}>
       {p.kind === 'other' ? <button class="btn soft lg block" onClick={() => { setScr('type'); setText(''); }}>พิมพ์แทน</button>
-        : <button class="btn primary lg block" onClick={() => done(commit(p, portion, meal, cat, atDate()))}><Icon n="check" />{saveLabel}</button>}
+        : <button class="btn primary lg block" onClick={() => {
+          // A scanned product the user corrected keeps the corrected values for the next scan.
+          const it = p.food?.items[0];
+          if (ref?.barcode && it && (Math.round(it.kcal) !== ref.k)) saveProduct({ ...ref, k: Math.round(it.kcal) });
+          done(commit(p, portion, meal, cat, atDate()));
+        }}><Icon n="check" />{saveLabel}</button>}
     </div>
   </>);
 }
