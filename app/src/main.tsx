@@ -11,11 +11,14 @@ import { App } from './app';
 import { checkReminders } from './domain/reminders';
 import { initNative } from './native';
 import { initHealth } from './health';
+import { loadExLib } from './domain/exlib';
 
 autoWake();
 trimRaw();
 initNative().catch(() => {});
 initHealth();
+// Exercise library (public domain) for names/images/analysis of exercises added from it; loads in the background.
+setTimeout(() => void loadExLib(), 1500);
 if ('serviceWorker' in navigator && import.meta.env.PROD) navigator.serviceWorker.register('/sw.js').catch(() => {});
 document.addEventListener('visibilitychange', () => { if (!document.hidden) autoWake();
 if ('serviceWorker' in navigator && import.meta.env.PROD) navigator.serviceWorker.register('/sw.js').catch(() => {}); });

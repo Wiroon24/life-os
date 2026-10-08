@@ -1,6 +1,7 @@
 import { persisted, uid } from '../store/persist';
 import { addDecorator, blocksFor, setStatus } from './plan';
 import { addDays, dayKey } from './time';
+import { bucketOf, eqTh, type LibEx } from './exlib';
 
 export type WUnit = 'kg' | 'BW' | '% ชัน';
 export interface Exercise {
@@ -82,6 +83,12 @@ export function suggest(e: Exercise): { kg: number; reps: number; hint?: string;
   const done = last.sets.filter((s) => s.done), topKg = Math.max(...done.map((s) => s.kg));
   const allHit = done.length >= e.sets && done.every((s) => s.reps >= e.reps && s.kg >= topKg);
   if (allHit) return { kg: +(topKg + e.step).toFixed(1), reps: e.reps, hint: `+${e.step} kg ได้แล้ว`, prev: last.sets };
+  // Stall: 3 sessions in a row at the same top weight without beating the best reps → deload ~10% and climb again.
+  const h = history(e.name).slice(-3);
+  if (h.length === 3 && h.every((x) => x.kg === topKg) && h[2].reps <= h[0].reps) {
+    const kg = Math.max(e.step, Math.round((topKg * 0.9) / e.step) * e.step);
+    return { kg: +kg.toFixed(1), reps: e.reps, hint: `ค้างที่ ${topKg} kg มา 3 ครั้ง · ลดเหลือ ${+kg.toFixed(1)} kg แล้วไต่ใหม่ (deload)`, prev: last.sets };
+  }
   const minReps = Math.min(...done.map((s) => s.reps));
   return { kg: topKg, reps: Math.min(e.reps, minReps + 1), hint: minReps < e.reps ? '+1 ครั้ง จากครั้งก่อน' : e.hint, prev: last.sets };
 }
@@ -141,6 +148,23 @@ export function history(name: string) {
     const e = w.ex.find((x) => x.name === name)!, best = e.sets.filter((s) => s.done).sort((a, b) => b.kg - a.kg || b.reps - a.reps)[0];
     return best ? { date: w.date, kg: best.kg, reps: best.reps } : null;
   }).filter(Boolean) as { date: string; kg: number; reps: number }[];
+}
+
+/** Estimated one-rep max (Epley). Only meaningful for sets of ~1–12 reps. */
+export const e1rm = (kg: number, reps: number) => (reps <= 1 ? kg : Math.round(kg * (1 + reps / 30) * 10) / 10);
+export function e1rmHistory(name: string) {
+  return workouts.value.filter((w) => w.ex.some((e) => e.name === name && e.unit === 'kg')).sort((a, b) => a.t0 - b.t0).map((w) => {
+    const sets = w.ex.find((x) => x.name === name)!.sets.filter((s) => s.done && s.kg > 0 && s.reps > 0 && s.reps <= 12);
+    const top = sets.map((s) => ({ ...s, v: e1rm(s.kg, s.reps) })).sort((a, b) => b.v - a.v)[0];
+    return top ? { date: w.date, kg: top.kg, reps: top.reps, e1rm: top.v } : null;
+  }).filter(Boolean) as { date: string; kg: number; reps: number; e1rm: number }[];
+}
+
+/** New program exercise from a free-exercise-db entry. */
+export function exFromLibEx(l: LibEx): Exercise {
+  const muscle = bucketOf(l), bw = l.eq === 'body only' || l.eq == null, car = muscle === 'คาร์ดิโอ', str = l.cat === 'stretching';
+  return E(l.n, eqTh(l), muscle, car || str ? (str ? 2 : 1) : 3, car ? 20 : str ? 30 : 10, bw ? 0 : car ? 4 : 10, car ? 0 : str ? 15 : 75, undefined,
+    bw ? { unit: 'BW', ...(str ? { repUnit: 'วิ' as const } : {}) } : car ? cardio : {});
 }
 
 /* ---------- Library & mobility ---------- */

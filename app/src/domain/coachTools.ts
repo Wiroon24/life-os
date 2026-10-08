@@ -2,7 +2,8 @@ import type Anthropic from '@anthropic-ai/sdk';
 import { persisted, uid } from '../store/persist';
 import { addDays, dayKey, DOW_SHORT } from './time';
 import { appNow, blocksFor, statusOf } from './plan';
-import { program, workouts, weekIds, dayById, history, LIB, exFromLib, volumeOf, type Exercise } from './training';
+import { program, workouts, weekIds, dayById, history, LIB, exFromLib, exFromLibEx, volumeOf, type Exercise } from './training';
+import { exLib } from './exlib';
 import { customTargets, aiTargets, targetsFor, foodLog, water, WATER_GOAL, tdee, type DayType, type Macro } from './food';
 import { sortedW, avg7, rate, inbodies, MILESTONES, START_KG } from './body';
 import { sleepLog, hoursOf } from './sleep';
@@ -85,7 +86,7 @@ function programText() {
   const ids = weekIds(appNow());
   const rows = ids.map((id, i) => `${DOW_SHORT[i]} → ${id}`).join(', ');
   const days = program.value.map((d) => `[${d.id}] ${d.name} (${d.kind}): ${d.exercises.map((e) => `${e.name} ${e.sets}×${e.reps}${e.repUnit !== 'ครั้ง' ? e.repUnit : ''}${e.unit === 'kg' ? ` @${e.kg}kg` : ''} พัก${e.rest}s`).join('; ') || '-'}`).join('\n');
-  return `ตารางสัปดาห์นี้: ${rows}\n${days}\nคลังท่า: ${LIB.map((l) => l[0]).join(', ')}`;
+  return `ตารางสัปดาห์นี้: ${rows}\n${days}\nคลังท่า: ${LIB.map((l) => l[0]).join(', ')} (ใช้ชื่อภาษาอังกฤษจาก free-exercise-db ได้ด้วย เช่น "Dumbbell Flyes")`;
 }
 
 const nullable = (t: string) => ({ type: [t, 'null'] });
@@ -117,7 +118,11 @@ export function runExtra(name: string, input: Record<string, unknown>, cards: Ca
     const patch: Partial<Exercise> = {}; const s = num(input.sets), r = num(input.reps), k = num(input.kg), rs = num(input.rest);
     if (s != null) patch.sets = Math.max(1, Math.min(10, s)); if (r != null) patch.reps = Math.max(1, Math.min(100, r)); if (k != null) patch.kg = Math.max(0, k); if (rs != null) patch.rest = Math.max(0, Math.min(600, rs));
     let text = '';
-    const lib = (n: unknown) => { const l = LIB.find((x) => x[0].toLowerCase() === String(n).toLowerCase()); return l ? exFromLib(l[0]) : null; };
+    const lib = (n: unknown) => {
+      const q = String(n).toLowerCase(), l = LIB.find((x) => x[0].toLowerCase() === q); if (l) return exFromLib(l[0]);
+      // Also accept exact English names from the full public-domain library.
+      const f = exLib.value?.find((x) => x.n.toLowerCase() === q); return f ? exFromLibEx(f) : null;
+    };
     let nextEx: Exercise[] = day.exercises;
     if (op === 'add') { const ne = lib(input.new_exercise); if (!ne) return `ไม่มีท่านี้ในคลัง เลือกจาก: ${LIB.map((l) => l[0]).join(', ')}`; nextEx = [...day.exercises, { ...ne, ...patch }]; text = `เพิ่ม ${ne.name} ใน${day.name}`; }
     else {

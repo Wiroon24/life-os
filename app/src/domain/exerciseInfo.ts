@@ -1,3 +1,4 @@
+import { libByName, libInfo } from './exlib';
 /** Coaching content for every exercise in the app: how to do it, why it is in the plan for this user, common mistakes. */
 export type Group = 'อก' | 'หลัง' | 'ไหล่' | 'แขน' | 'ต้นขาหน้า' | 'สะโพกและหลังต้นขา' | 'น่อง' | 'แกนกลาง' | 'คาร์ดิโอ';
 export interface ExInfo {
@@ -127,4 +128,10 @@ export const MOB_INFO: Record<string, ExInfo> = {
     ['คุกเข่า ก้นลงนั่งบนส้นเท้า', 'ก้มตัวไปข้างหน้า แขนยืดไปไกลบนพื้น', 'หายใจลึกช้าๆ ค้าง 60–90 วิ'], 'ผ่อนคลายหลังและไหล่หลังซ้อม และใช้เป็นท่าปิดท้ายวันฟื้นตัว', ['ยกสะโพกขึ้นลอย'], undefined, 'child pose วิธีทำ'),
 };
 
-export const infoFor = (name: string): ExInfo | undefined => EX_INFO[name] ?? MOB_INFO[name] ?? EX_INFO[name.replace(/ค้าง.*/, 'ค้าง')];
+export const isCurated = (name: string) => !!(EX_INFO[name] ?? MOB_INFO[name] ?? EX_INFO[name.replace(/ค้าง.*/, 'ค้าง')]);
+/** Curated Thai cards first; otherwise the public-domain library entry (once loaded). */
+export const infoFor = (name: string): ExInfo | undefined => {
+  const own = EX_INFO[name] ?? MOB_INFO[name] ?? EX_INFO[name.replace(/ค้าง.*/, 'ค้าง')];
+  if (own) return own;
+  const l = libByName(name); return l ? libInfo(l) : undefined;
+};

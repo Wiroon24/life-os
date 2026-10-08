@@ -6,7 +6,8 @@ import { alertNow } from '../../store/notify';
 import { dayKey, DOW_SHORT, parseKey } from '../../domain/time';
 import { appNow, blocksFor, setStatus } from '../../domain/plan';
 import { ExImg } from './ExerciseInfo';
-import { MOB, LIB, EQ, program, weekIds, dayById, exFromLib, exLogFrom, active, warmDone, history, kindIcon } from '../../domain/training';
+import { MOB, LIB, EQ, program, weekIds, dayById, exFromLib, exFromLibEx, exLogFrom, active, warmDone, history, e1rmHistory, kindIcon, type Exercise } from '../../domain/training';
+import { exLib, loadExLib, bucketOf, eqTh, imgUrl, MUSCLE_TH, type LibEx } from '../../domain/exlib';
 
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.max(0, s) % 60).padStart(2, '0')}`;
 
@@ -82,11 +83,23 @@ export function ProgramEdit({ id }: { id?: string }) {
   );
 }
 
+const MUSCLE_F = ['อก', 'หลัง', 'ไหล่', 'แขน', 'ขา', 'น่อง', 'แกนกลาง', 'คาร์ดิโอ'];
+const LIB_EQ: [string, string[]][] = [['ดัมเบล', ['dumbbell']], ['ม้านั่ง', []], ['ตัวเปล่า', ['body only']], ['เครื่อง/เคเบิล', ['machine', 'cable']], ['บาร์เบล', ['barbell', 'e-z curl bar']], ['เคตเทิลเบล', ['kettlebells']], ['ยางยืด', ['bands']], ['ลู่วิ่ง', []]];
+
 export function Library({ ctx, dayId }: { ctx: 'log' | 'program'; dayId?: string }) {
-  const [q, setQ] = useState(''), [eqf, setEqf] = useState<string[]>([]);
-  const list = LIB.filter((l) => (!q || l[0].toLowerCase().includes(q.toLowerCase())) && (!eqf.length || l[1].some((e) => eqf.includes(e))));
-  const addOne = (name: string) => {
-    const ne = exFromLib(name);
+  const [q, setQ] = useState(''), [eqf, setEqf] = useState<string[]>([]), [mf, setMf] = useState<string | null>(null), [more, setMore] = useState(40);
+  useEffect(() => { void loadExLib(); }, []);
+  const ql = q.trim().toLowerCase();
+  const list = LIB.filter((l) => (!ql || l[0].toLowerCase().includes(ql)) && (!eqf.length || l[1].some((e) => eqf.includes(e))) && (!mf || l[2] === mf || (mf === 'ขา' && l[2] === 'เข่า')));
+  // Full public-domain library: search English name, Thai muscle/equipment words; filter by muscle + equipment.
+  const libEqs = eqf.flatMap((x) => LIB_EQ.find((y) => y[0] === x)?.[1] ?? []);
+  const own = new Set(LIB.map((l) => l[0].toLowerCase()));
+  const words = ql.split(/\s+/).filter(Boolean);
+  const full = (exLib.value ?? []).filter((e) => !own.has(e.n.toLowerCase()) && (!mf || bucketOf(e) === mf) && (!eqf.length || (e.eq != null && libEqs.includes(e.eq)))
+    && (!words.length || words.every((w) => `${e.n} ${eqTh(e)} ${e.pm.map((m) => MUSCLE_TH[m] ?? m).join(' ')} ${e.pm.join(' ')}`.toLowerCase().includes(w))));
+  const addLib = (l: LibEx) => addEx(exFromLibEx(l), l.n);
+  const addOne = (name: string) => addEx(exFromLib(name), name);
+  const addEx = (ne: Exercise, name: string) => {
     if (ctx === 'log' && active.value) { const a = JSON.parse(JSON.stringify(active.value)); a.ex.push(exLogFrom(ne)); a.cur = a.ex.length - 1; active.value = a; toast(`เพิ่ม ${name} · แค่วันนี้`); back(); return; }
     program.value = program.value.map((d) => (d.id === dayId ? { ...d, exercises: [...d.exercises, ne] } : d)); toast(`เพิ่ม ${name}`); back();
   };
@@ -94,11 +107,24 @@ export function Library({ ctx, dayId }: { ctx: 'log' | 'program'; dayId?: string
     <div class="screen sub" style={{ gap: 10 }}>
       <TopBar title="คลังท่า" onBack={back} />
       <div class="card row" style={{ borderRadius: 999, height: 52, padding: '0 16px', gap: 8 }}><Icon n="search" size={22} color="var(--ink-2)" /><input value={q} onInput={(e) => setQ((e.target as HTMLInputElement).value)} placeholder="ค้นหาท่า" style={{ flex: 1, minWidth: 0, border: 'none', outline: 'none', background: 'none', fontSize: 16 }} /></div>
-      <div class="no-scrollbar" style={{ display: 'flex', gap: 6, overflowX: 'auto' }}>{EQ.map((l) => { const on = eqf.includes(l); return <button style={{ height: 40, flex: 'none', padding: '0 14px', borderRadius: 999, background: on ? 'var(--ink)' : '#fff', color: on ? '#fff' : 'var(--ink)', fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap' }} onClick={() => setEqf(on ? eqf.filter((x) => x !== l) : [...eqf, l])}>{l}</button>; })}</div>
+      <div class="no-scrollbar" style={{ display: 'flex', gap: 6, overflowX: 'auto' }}>{MUSCLE_F.map((l) => { const on = mf === l; return <button aria-pressed={on} style={{ height: 40, flex: 'none', padding: '0 14px', borderRadius: 999, background: on ? 'var(--workout-ink)' : '#fff', color: on ? '#fff' : 'var(--ink)', fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap' }} onClick={() => { setMf(on ? null : l); setMore(40); }}>{l}</button>; })}</div>
+      <div class="no-scrollbar" style={{ display: 'flex', gap: 6, overflowX: 'auto' }}>{[...new Set([...EQ, ...LIB_EQ.map((x) => x[0])])].map((l) => { const on = eqf.includes(l); return <button aria-pressed={on} style={{ height: 40, flex: 'none', padding: '0 14px', borderRadius: 999, background: on ? 'var(--ink)' : '#fff', color: on ? '#fff' : 'var(--ink)', fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap' }} onClick={() => { setEqf(on ? eqf.filter((x) => x !== l) : [...eqf, l]); setMore(40); }}>{l}</button>; })}</div>
+      {list.length > 0 && <><span class="muted" style={{ fontSize: 13, fontWeight: 600, padding: '0 4px' }}>ท่าของคุณ · มีคำอธิบายภาษาไทย</span>
       <div class="card" style={{ padding: '6px 6px 6px 14px' }}>
-        {list.map((l, i) => <div class="row" style={{ gap: 10, minHeight: 60, boxShadow: i ? 'inset 0 1px 0 var(--surface-2)' : 'none' }}><button class="col grow" style={{ textAlign: 'left' }} onClick={() => push('exercise', { name: l[0] })}><span style={{ fontSize: 15.5, fontWeight: 600 }}>{l[0]}</span><span class="muted" style={{ fontSize: 12.5 }}>{l[2]} · {l[1].join(' + ')}</span></button><button class="btn icon" style={{ background: 'var(--bg)' }} onClick={() => addOne(l[0])} aria-label="เพิ่ม"><Icon n="add" size={22} /></button></div>)}
-        {list.length === 0 && <div class="small muted" style={{ padding: '16px 0' }}>ไม่เจอท่านี้ ลองลบตัวกรองอุปกรณ์</div>}
-      </div>
+        {list.map((l, i) => <div class="row" style={{ gap: 10, minHeight: 60, boxShadow: i ? 'inset 0 1px 0 var(--surface-2)' : 'none' }}><button class="col grow" style={{ textAlign: 'left' }} onClick={() => push('exercise', { name: l[0] })}><span style={{ fontSize: 15.5, fontWeight: 600 }}>{l[0]}</span><span class="muted" style={{ fontSize: 12.5 }}>{l[2]} · {l[1].join(' + ')}</span></button><button class="btn icon" style={{ background: 'var(--bg)' }} onClick={() => addOne(l[0])} aria-label={`เพิ่ม ${l[0]}`}><Icon n="add" size={22} /></button></div>)}
+      </div></>}
+      <span class="muted" style={{ fontSize: 13, fontWeight: 600, padding: '0 4px' }}>คลังท่าทั้งหมด {exLib.value ? `· ${full.length} ท่า` : '· กำลังโหลด…'}</span>
+      {exLib.value && <div class="card" style={{ padding: '6px 6px 6px 8px' }}>
+        {full.slice(0, more).map((l, i) => <div class="row" style={{ gap: 10, minHeight: 64, boxShadow: i ? 'inset 0 1px 0 var(--surface-2)' : 'none' }}>
+          <button class="row grow" style={{ textAlign: 'left', gap: 10, minWidth: 0 }} onClick={() => push('exercise', { name: l.n })}>
+            {l.img > 0 ? <img src={imgUrl(l.id, 0)} alt="" loading="lazy" style={{ width: 48, height: 48, flex: 'none', objectFit: 'cover', borderRadius: 10, background: 'var(--surface-2)' }} /> : <span style={{ width: 48, height: 48, flex: 'none', borderRadius: 10, background: 'var(--surface-2)' }} />}
+            <span class="col" style={{ minWidth: 0 }}><span lang="en" style={{ fontSize: 15, fontWeight: 600 }}>{l.n}</span><span class="muted" style={{ fontSize: 12.5 }}>{l.pm.map((m) => MUSCLE_TH[m] ?? m).join(' · ')} · {eqTh(l)}</span></span>
+          </button>
+          <button class="btn icon" style={{ background: 'var(--bg)', flex: 'none' }} onClick={() => addLib(l)} aria-label={`เพิ่ม ${l.n}`}><Icon n="add" size={22} /></button></div>)}
+        {full.length > more && <button class="btn soft block" style={{ height: 48, margin: '6px 0' }} onClick={() => setMore(more + 60)}>ดูเพิ่ม ({full.length - more} ท่า)</button>}
+        {full.length === 0 && <div class="small muted" style={{ padding: '16px 8px' }}>ไม่เจอท่านี้ ลองค้นเป็นภาษาอังกฤษ เช่น curl, squat หรือลบตัวกรอง</div>}
+      </div>}
+      <span class="cap muted" style={{ padding: '0 4px' }}>คลังท่าและรูปจาก free-exercise-db (สาธารณสมบัติ)</span>
     </div>
   );
 }
@@ -106,8 +132,9 @@ export function Library({ ctx, dayId }: { ctx: 'log' | 'program'; dayId?: string
 export function History({ name: name0 }: { name?: string }) {
   const names = [...new Set(program.value.flatMap((d) => d.exercises.filter((e) => e.unit === 'kg').map((e) => e.name)))];
   const [name, setName] = useState(name0 ?? names[0]);
-  const [m, setM] = useState<'w' | 'r'>('w');
-  const h = history(name), vals = h.map((x) => (m === 'w' ? x.kg : x.reps));
+  const [m, setM] = useState<'w' | 'r' | 'e'>('w');
+  const e1 = Object.fromEntries(e1rmHistory(name).map((x) => [x.date, x.e1rm]));
+  const h = history(name), vals = h.map((x) => (m === 'w' ? x.kg : m === 'e' ? e1[x.date] ?? x.kg : x.reps));
   const lo = vals.length ? Math.min(...vals) - 2 : 0, hi = vals.length ? Math.max(...vals) + 2 : 10;
   const px = (i: number) => 28 + (vals.length > 1 ? (i / (vals.length - 1)) * 292 : 146), py = (v: number) => 140 - ((v - lo) / (hi - lo || 1)) * 124;
   const pts = vals.map((v, i) => `${px(i).toFixed(1)},${py(v).toFixed(1)}`).join(' ');
@@ -118,12 +145,12 @@ export function History({ name: name0 }: { name?: string }) {
     <div class="screen sub" style={{ gap: 14 }}>
       <TopBar title="ประวัติท่า" onBack={back} />
       <select class="field" value={name} onChange={(e) => setName((e.target as HTMLSelectElement).value)}>{names.map((n) => <option value={n}>{n}</option>)}</select>
-      <Seg value={m} onChange={setM} options={[['w', 'น้ำหนัก'], ['r', 'ครั้ง']]} />
+      <Seg value={m} onChange={setM} options={[['w', 'น้ำหนัก'], ['r', 'ครั้ง'], ['e', '1RM ประมาณ']]} />
       <div class="card" style={{ borderRadius: 22, padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
         {h.length === 0 ? <div class="empty"><Icon n="show_chart" size={40} color="var(--ink-3)" /><span class="muted">ยังไม่มีประวัติ ซ้อมท่านี้สักครั้งแล้วกราฟจะขึ้น</span></div> : <>
           <div class="row" style={{ justifyContent: 'space-between', alignItems: 'flex-end' }}>
-            <span class="col"><span class="muted" style={{ fontSize: 13, fontWeight: 600 }}>{m === 'w' ? 'น้ำหนักต่อข้าง สูงสุด' : 'ครั้งของเซ็ตหนักสุด'}</span><span class="num" style={{ fontSize: 34, fontWeight: 600, lineHeight: 1.15 }}>{m === 'w' ? `${last!.kg} kg × ${last!.reps}` : `${last!.reps} ครั้ง @ ${last!.kg} kg`}</span></span>
-            {h.length > 1 && <span style={{ display: 'inline-flex', alignItems: 'center', height: 30, padding: '0 10px 0 6px', borderRadius: 999, background: 'var(--success-tint)', color: 'var(--workout-ink)', fontSize: 14, fontWeight: 600 }}><Icon n="arrow_upward" size={18} />{m === 'w' ? `${+(last!.kg - first.kg).toFixed(1)} kg` : `${last!.reps - first.reps}`}</span>}
+            <span class="col"><span class="muted" style={{ fontSize: 13, fontWeight: 600 }}>{m === 'w' ? 'น้ำหนักต่อข้าง สูงสุด' : m === 'e' ? 'ยกได้ 1 ครั้ง (ประมาณจากเซ็ตดีสุด)' : 'ครั้งของเซ็ตหนักสุด'}</span><span class="num" style={{ fontSize: 34, fontWeight: 600, lineHeight: 1.15 }}>{m === 'w' ? `${last!.kg} kg × ${last!.reps}` : m === 'e' ? `${vals.at(-1)} kg` : `${last!.reps} ครั้ง @ ${last!.kg} kg`}</span></span>
+            {h.length > 1 && <span style={{ display: 'inline-flex', alignItems: 'center', height: 30, padding: '0 10px 0 6px', borderRadius: 999, background: 'var(--success-tint)', color: 'var(--workout-ink)', fontSize: 14, fontWeight: 600 }}><Icon n="arrow_upward" size={18} />{m === 'r' ? `${last!.reps - first.reps}` : `${+(vals.at(-1)! - vals[0]).toFixed(1)} kg`}</span>}
           </div>
           <svg viewBox="0 0 326 170" style={{ width: '100%', height: 'auto', display: 'block' }}>
             <polygon points={`28,140 ${pts} ${px(vals.length - 1)},140`} fill={c} opacity={0.1} />

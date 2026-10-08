@@ -2,8 +2,11 @@ import { useState } from 'preact/hooks';
 import { Icon, TopBar } from '../../ui/kit';
 import { back, push } from '../../store/nav';
 import { appNow } from '../../domain/plan';
-import { program, weekIds, dayById } from '../../domain/training';
-import { infoFor, type Group } from '../../domain/exerciseInfo';
+import { program, weekIds, dayById, workouts } from '../../domain/training';
+import { infoFor, isCurated, type Group } from '../../domain/exerciseInfo';
+import { imgUrl, libByName, loadExLib, eqTh, LVL_TH, CAT_TH } from '../../domain/exlib';
+import { useEffect } from 'preact/hooks';
+import { e1rmHistory } from '../../domain/training';
 import { send } from '../../domain/coach';
 import { goTab } from '../../store/nav';
 
@@ -15,20 +18,31 @@ export function ExImg({ name, h = 220 }: { name: string; h?: number }) {
   );
   return (
     <button class="press" onClick={() => setF(1 - f)} style={{ position: 'relative', height: h, borderRadius: 20, overflow: 'hidden', background: '#fff', padding: 0 }} aria-label="สลับภาพต้น/ปลายท่า">
-      <img src={`/ex/${info.img}/${f}.jpg`} style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
+      <img src={imgUrl(info.img, f)} alt={`${name} ${f ? 'ปลายท่า' : 'ต้นท่า'}`} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
       <span style={{ position: 'absolute', left: 10, bottom: 10, background: 'rgba(23,24,28,.72)', color: '#fff', fontSize: 12.5, fontWeight: 600, padding: '4px 10px', borderRadius: 999 }}>{f ? 'ปลายท่า' : 'ต้นท่า'} · แตะเพื่อสลับ</span>
     </button>
   );
 }
 
 export function ExerciseDetail({ name }: { name: string }) {
-  const i = infoFor(name);
+  useEffect(() => { void loadExLib(); }, []);
+  const i = infoFor(name), lib = !isCurated(name) ? libByName(name) : undefined;
   const e = program.value.flatMap((d) => d.exercises).find((x) => x.name === name);
+  const best = e1rmHistory(name).at(-1);
   return (
     <div class="screen sub" style={{ gap: 14 }}>
       <TopBar title={name} onBack={back} />
       <ExImg name={name} h={250} />
-      {!i ? <div class="card" style={{ padding: 16 }}><span class="muted">ยังไม่มีคำอธิบายของท่านี้ ถามโค้ชในแท็บโค้ชได้</span></div> : <>
+      {best && <div class="card row" style={{ padding: '12px 16px', gap: 10 }}><Icon n="trending_up" size={22} color="var(--workout-ink)" /><span class="col grow"><span class="cap muted" style={{ fontWeight: 600 }}>1RM ประมาณ (ยกได้ 1 ครั้ง)</span><span class="num" style={{ fontSize: 20, fontWeight: 600 }}>{best.e1rm} kg</span></span><span class="cap muted" style={{ textAlign: 'right' }}>จาก {best.kg} kg × {best.reps}<br />{best.date}</span></div>}
+      {lib && i ? <>
+        <div class="row" style={{ gap: 6, flexWrap: 'wrap' }}><span class="chip on">{CAT_TH[lib.cat] ?? lib.cat}</span><span class="chip">{eqTh(lib)}</span><span class="chip">ระดับ{LVL_TH[lib.lvl] ?? lib.lvl}</span></div>
+        <div class="card" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 6 }}><span class="cap muted" style={{ fontWeight: 600 }}>กล้ามเนื้อ</span><span style={{ fontSize: 15 }}>{i.muscles}</span></div>
+        <div class="card" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <span class="h2">ทำอย่างไร</span><span class="cap muted" style={{ marginTop: -6 }}>คำอธิบายจากคลังท่า (ภาษาอังกฤษ)</span>
+          {i.steps.map((s, n) => <div class="row" style={{ alignItems: 'flex-start', gap: 10 }}><span style={{ width: 24, height: 24, flex: 'none', borderRadius: 999, background: 'var(--ink)', color: '#fff', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{n + 1}</span><span lang="en" style={{ fontSize: 14.5, lineHeight: 1.55 }}>{s}</span></div>)}
+          <button class="btn soft" style={{ height: 48 }} onClick={() => { goTab('coach'); void send(`อธิบายท่า "${name}" เป็นภาษาไทยสั้นๆ: วิธีทำทีละขั้น จุดที่มักพลาด และควรใส่ในโปรแกรมของฉันไหม`); }}><Icon n="translate" size={20} />ให้โค้ชอธิบายเป็นไทย</button>
+        </div>
+      </> : !i ? <div class="card" style={{ padding: 16 }}><span class="muted">ยังไม่มีคำอธิบายของท่านี้ ถามโค้ชในแท็บโค้ชได้</span></div> : <>
         <div class="row" style={{ gap: 6, flexWrap: 'wrap' }}>
           <span class="chip on">{i.pattern}</span><span class="chip">{i.muscles}</span>{e && <span class="chip">{e.sets} × {e.reps}{e.repUnit !== 'ครั้ง' ? ' ' + e.repUnit : ''}</span>}
         </div>
@@ -76,7 +90,40 @@ export function weekAnalysis() {
   return { sets, pat, cardioMin, notes };
 }
 
+/** From logged sessions: sets per group in the last 7 days, and hours since the group was last trained. */
+export function muscleStatus(now = Date.now()) {
+  const groups = Object.keys(TARGET) as Group[];
+  const out = groups.map((g) => ({ g, sets: 0, last: 0 }));
+  for (const w of workouts.value) {
+    if (now - w.t0 > 30 * 864e5) continue;
+    for (const e of w.ex) {
+      const i = infoFor(e.name), n = e.sets.filter((s) => s.done).length; if (!i || !n) continue;
+      i.groups.forEach((g, k) => { const r = out.find((x) => x.g === g); if (!r) return; if (now - w.t0 <= 7 * 864e5) r.sets += k === 0 ? n : n / 2; r.last = Math.max(r.last, w.t1 ?? w.t0); });
+    }
+  }
+  return out.map((r) => {
+    const h = r.last ? (now - r.last) / 3600e3 : Infinity;
+    const state = h < 48 ? 'recovering' : h > 7 * 24 ? 'untrained' : 'ready';
+    return { ...r, sets: Math.round(r.sets), hours: h, state } as const;
+  });
+}
+const STATE = { recovering: ['ฟื้นตัวอยู่', '#FFF4E3', '#9A5800'], ready: ['พร้อมซ้อม', '#E3F5E8', '#137A38'], untrained: ['ไม่ได้ซ้อมนาน', '#FDE7E4', '#B42318'] } as const;
+
+export function MuscleStatusCard() {
+  const rows = muscleStatus();
+  return <div class="card" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <span class="h2">สถานะกล้ามเนื้อ</span>
+    <span class="cap muted" style={{ marginTop: -6 }}>จากที่ซ้อมจริง · เซ็ตใน 7 วันล่าสุด · ฟื้นตัว = ซ้อมไปไม่ถึง 48 ชม.</span>
+    {rows.map((r) => { const [l, soft, ink] = STATE[r.state]; return <div class="row" style={{ gap: 10, minHeight: 40 }}>
+      <span class="grow" style={{ fontSize: 15 }}>{r.g}</span>
+      <span class="num muted" style={{ fontSize: 13 }}>{r.sets} เซ็ต · {r.hours === Infinity ? 'ยังไม่เคย' : r.hours < 24 ? `${Math.round(r.hours)} ชม.ก่อน` : `${Math.round(r.hours / 24)} วันก่อน`}</span>
+      <span style={{ height: 28, padding: '0 10px', borderRadius: 999, background: soft, color: ink, fontSize: 12.5, fontWeight: 600, display: 'inline-flex', alignItems: 'center', flex: 'none' }}>{l}</span>
+    </div>; })}
+  </div>;
+}
+
 export function Analysis() {
+  useEffect(() => { void loadExLib(); }, []);
   const a = weekAnalysis();
   const rows = (Object.keys(TARGET) as Group[]).map((g) => [g, Math.round(a.sets[g] ?? 0), TARGET[g]!] as const);
   const ids = weekIds(appNow());
@@ -99,6 +146,7 @@ export function Analysis() {
           </div>); })}
         <span class="cap muted">แถบเขียวอ่อน = ช่วงที่งานวิจัยแนะนำสำหรับการเพิ่มกล้ามเนื้อ (ประมาณ 10–20 เซ็ตต่อกลุ่มต่อสัปดาห์) ตัวเลขคิดจากโปรแกรมสัปดาห์นี้ของคุณ (กล้ามเนื้อรองนับครึ่งเซ็ต)</span>
       </div>
+      <MuscleStatusCard />
       <div class="card" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
         <span class="h2">ข้อสังเกต</span>
         {a.notes.map((n) => <div class="row" style={{ alignItems: 'flex-start', gap: 8 }}><Icon n="chevron_right" size={20} color="var(--ink-3)" /><span style={{ fontSize: 15, lineHeight: 1.55 }}>{n}</span></div>)}
