@@ -32,11 +32,52 @@ function InboxRow({ t, onPick }: { t: Txn; onPick: () => void }) {
         onPointerCancel={() => { st.current = null; setDx(0); }}
         style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 12, minHeight: 72, padding: '10px 14px 10px 12px', background: '#fff', borderRadius: 18, transform: `translateX(${dx}px)`, transition: st.current ? 'none' : 'transform 220ms var(--ease-out)', touchAction: 'pan-y', userSelect: 'none', cursor: 'grab' }}>
         <span class="medal" style={{ width: 40, height: 40, background: c.soft, color: c.ink }}><Icon n={c.icon} fill size={22} /></span>
-        <span class="col grow"><span style={{ fontSize: 15.5, fontWeight: 600 }}>{t.merchant}</span><span class="muted" style={{ fontSize: 12.5 }}>{t.account} · <b style={{ fontWeight: 600, color: c.ink }}>{t.cat}</b>{t.fx ? ` · ${t.fx.amt} ${t.fx.cur} (ประมาณ)` : ''}</span></span>
+        <span class="col grow" style={{ gap: 4 }}><span style={{ fontSize: 15.5, fontWeight: 600 }}>{t.merchant}</span><span class="row muted" style={{ fontSize: 12.5, gap: 6, flexWrap: 'wrap' }}>{t.account}
+          <span class="row" style={{ gap: 2, height: 26, padding: '0 6px 0 10px', borderRadius: 999, background: c.soft, color: c.ink, fontWeight: 600 }}>{t.cat}<Icon n="expand_more" size={16} /></span>{t.fx ? `${t.fx.amt} ${t.fx.cur} (ประมาณ)` : ''}</span></span>
         <span class="num" style={{ fontSize: 17, fontWeight: 600, color: kindOfCat(t.cat) === 'income' || t.inc ? 'var(--workout-ink)' : 'var(--ink)' }}>{t.fx ? '≈' : ''}{sign(t)}{fmt(t.amount)}</span>
       </div>
     </div>
   );
+}
+
+/** Picking a category on a pending item means the user checked it: set the category and confirm in one tap (undoable). */
+function setCatAndConfirm(t: Txn, cat: string, inc: boolean, close = true) {
+  const before = txns.value.find((x) => x.id === t.id); if (!before) return;
+  txns.value = txns.value.map((x) => (x.id === t.id ? { ...x, cat, inc } : x));
+  if (close) closeSheet();
+  if (before.status === 'pending') { confirmTxns([t.id]); showUndo(`${t.merchant} → ${cat} · ยืนยันแล้ว`, () => (txns.value = txns.value.map((x) => (x.id === t.id ? before : x)))); }
+}
+
+/** Shown right after bank notifications are imported: fix the category inline, then confirm or reject. */
+export function reviewTxns(ids: string[]) {
+  openSheet({ title: ids.length > 1 ? `รายการใหม่ ${ids.length} รายการ` : 'รายการใหม่', body: () => {
+    const list = txns.value.filter((t) => ids.includes(t.id) && t.status === 'pending');
+    if (!list.length) { setTimeout(closeSheet, 0); return null; }
+    const cats = live(categories.value);
+    return <div class="col" style={{ gap: 12 }}>
+      <span class="muted" style={{ fontSize: 13, marginTop: -6 }}>หมวดไม่ถูก แตะหมวดที่ถูกได้เลย แตะแล้วยืนยันให้ทันที</span>
+      {list.map((t) => {
+        const kinds = t.inc ? ['income', 'transfer', 'invest', 'expense'] : ['expense', 'transfer', 'invest', 'income'];
+        const opts = [...cats].sort((a, b) => (a.name === t.cat ? -1 : b.name === t.cat ? 1 : kinds.indexOf(kindOfCat(a.name)) - kinds.indexOf(kindOfCat(b.name))));
+        return <div class="card" style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 10, background: 'var(--bg)' }}>
+          <div class="row" style={{ gap: 8 }}>
+            <span class="col grow" style={{ minWidth: 0 }}><span class="t16">{t.merchant}</span><span class="muted" style={{ fontSize: 12.5 }}>{t.account} · {new Date(t.ts).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}</span></span>
+            <span class="num" style={{ fontSize: 18, fontWeight: 600 }}>{sign(t)}{fmt(t.amount)}</span>
+          </div>
+          <div class="row no-scrollbar" style={{ gap: 6, overflowX: 'auto', margin: '0 -12px', padding: '0 12px' }}>
+            {opts.map((c) => { const on = c.name === t.cat; return <button class="press" style={{ flex: 'none', height: 40, padding: '0 12px', borderRadius: 999, display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, fontWeight: 600, background: on ? c.ink : c.soft, color: on ? '#fff' : c.ink }}
+              aria-pressed={on} onClick={() => setCatAndConfirm(t, c.name, kindOfCat(c.name) === 'income', false)}><Icon n={c.icon} fill size={18} />{c.name}</button>; })}
+            <button class="press" style={{ flex: 'none', height: 40, padding: '0 12px', borderRadius: 999, display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, fontWeight: 600, background: 'var(--surface-2)' }} onClick={() => openCategoryEditor(null, (n) => setCatAndConfirm(t, n, kindOfCat(n) === 'income', false))}><Icon n="add" size={18} />หมวดใหม่</button>
+          </div>
+          <div class="row" style={{ gap: 8 }}>
+            <button class="btn soft grow" style={{ height: 44, color: 'var(--error)' }} onClick={() => { const before = txns.value; txns.value = txns.value.filter((x) => x.id !== t.id); showUndo(`ลบ ${t.merchant}`, () => (txns.value = before)); }}><Icon n="close" size={20} />ไม่ใช่</button>
+            <button class="btn dark grow" style={{ height: 44 }} onClick={() => setCatAndConfirm(t, t.cat, t.inc, false)}><Icon n="check" size={20} />ถูกแล้ว · {t.cat}</button>
+          </div>
+        </div>;
+      })}
+      <button class="btn soft" onClick={closeSheet}>ไว้ทีหลัง (อยู่ในรอยืนยัน)</button>
+    </div>;
+  } });
 }
 
 export function pickCategory(t: Txn) {
@@ -52,7 +93,7 @@ export function pickCategory(t: Txn) {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8 }}>
             {list.map((c) => { const cur = t.cat === c.name; return (
               <button class="press" style={{ minHeight: 68, borderRadius: 16, background: cur ? c.ink : c.soft, color: cur ? '#fff' : c.ink, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, fontSize: 13.5, fontWeight: 600, padding: '6px 4px', textAlign: 'center' }}
-                onClick={() => { txns.value = txns.value.map((x) => (x.id === t.id ? { ...x, cat: c.name, inc: k === 'income' } : x)); closeSheet(); }}><Icon n={c.icon} fill />{c.name}</button>); })}
+                onClick={() => setCatAndConfirm(t, c.name, k === 'income')}><Icon n={c.icon} fill />{c.name}</button>); })}
           </div></div>); })}
       <button class="btn soft" onClick={() => openCategoryEditor(null, (n) => { const kk = kindOfCat(n); txns.value = txns.value.map((x) => (x.id === t.id ? { ...x, cat: n, inc: kk === 'income' } : x)); })}><Icon n="add" size={20} />หมวดใหม่</button>
       {t.status === 'confirmed' && <button class="btn soft" style={{ color: 'var(--error)' }} onClick={() => { const before = txns.value; txns.value = txns.value.filter((x) => x.id !== t.id); closeSheet(); showUndo(`ลบ ${t.merchant}`, () => (txns.value = before)); }}><Icon n="delete" size={20} />ลบรายการนี้</button>}

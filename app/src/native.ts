@@ -38,16 +38,17 @@ export const setCaptureSenders = async (senders: string[]) => { await Capture?.s
 export async function importCaptured() {
   if (!Capture) return;
   const { items } = await Capture.drain().catch(() => ({ items: [] as Captured[] }));
-  let n = 0;
+  const ids: string[] = [];
   for (const it of items) {
     const text = [it.title, it.text].filter(Boolean).join(' ');
     const p = parseNotification(text, it.label); if (!p) continue;
-    const before = _txCount(); addTxn({ ...p, ts: it.ts || Date.now(), source: 'notif' });
-    if (_txCount() > before) n++;
+    const before = txns.value.length; const tx = addTxn({ ...p, ts: it.ts || Date.now(), source: 'notif' });
+    if (txns.value.length > before && tx.status === 'pending') ids.push(tx.id);
   }
-  if (n) toast(`มีรายการรอยืนยันใหม่ ${n} รายการ`);
+  if (!ids.length) return;
+  // Open the review sheet so a wrong category can be fixed right away; fall back to a toast.
+  try { (await import('./screens/money/MoneyTab')).reviewTxns(ids); } catch { toast(`มีรายการรอยืนยันใหม่ ${ids.length} รายการ`); }
 }
-const _txCount = () => txns.value.length;
 
 /* ---------- Local notifications ---------- */
 const hash = (s: string) => { let h = 7; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return Math.abs(h) % 2_000_000_000 + 1; };
