@@ -12,7 +12,7 @@ export const healthState = persisted<{ on: boolean; last: number; msg: string; c
 /** Daily numbers that have no home elsewhere: steps, resting heart rate, active kcal. */
 export const healthDaily = persisted<Record<string, { steps?: number; rhr?: number; kcal?: number }>>('healthDaily', {});
 
-export const BUILD = 'hc-2026-10-06a';
+export const BUILD = 'hc-2026-10-09a';
 /** Visible trace of what the native calls did, because the permission flow runs outside the WebView. */
 export const healthLog = signal<string[]>([]);
 const note = (s: string) => { healthLog.value = [...healthLog.value.slice(-14), `${new Date().toLocaleTimeString('th-TH')} ${s}`]; };
@@ -143,6 +143,12 @@ const AUDIT_META: Record<string, { label: string; unit: string; ok?: [number, nu
   calories: { label: 'kcal กิจกรรม', unit: 'kcal' }, weight: { label: 'น้ำหนัก', unit: 'kg', ok: [30, 250] }, bodyFat: { label: 'ไขมัน', unit: '%', ok: [3, 60] },
   sleep: { label: 'การนอน (ช่วงย่อย)', unit: 'นาที' },
 };
+const STAGE_TH: Record<string, string> = { deep: 'ลึก', light: 'ตื้น', rem: 'REM', awake: 'ตื่น', asleep: 'หลับ', inBed: 'บนเตียง' };
+/** "ลึก 85 · ตื้น 250 · REM 70 นาที" from a session's nested stages. */
+const stageSum = (st: { stage: string; durationMinutes: number }[]) => {
+  const m: Record<string, number> = {}; for (const g of st) m[g.stage] = (m[g.stage] ?? 0) + (g.durationMinutes || 0);
+  return Object.entries(m).map(([k, v]) => `${STAGE_TH[k] ?? k} ${Math.round(v)}`).join(' · ') + ' นาที';
+};
 const hm = (iso: string) => { const d = new Date(iso); return `${d.getDate()}/${d.getMonth() + 1} ${d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}`; };
 
 /** Reads raw samples for the last `days` days and summarises each type. Nothing is written into the app's logs. */
@@ -163,13 +169,15 @@ export async function auditHealth(days = 7) {
       if (m.ok) { const bad = vals.filter((v) => v < m.ok![0] || v > m.ok![1]).length; if (bad) warn.push(`${bad} ค่าอยู่นอกช่วงปกติ ${m.ok[0]}–${m.ok[1]}`); }
       if (type === 'heartRate' && gaps.length && gaps[gaps.length >> 1] > 15) warn.push('วัดห่างเกิน 15 นาที คำนวณความหนักของวันได้แค่คร่าวๆ');
       if (type === 'heartRateVariability' && s.length && s.length / Math.max(1, dayset.size) < 3) warn.push('น้อยกว่า 3 ค่าต่อวัน ใช้เป็นแนวโน้มได้ ไม่ละเอียด');
-      if (isSleep && s.length && !s.some((x) => x.sleepState && !['asleep', 'inBed', 'awake'].includes(x.sleepState))) warn.push('ไม่มีระยะหลับ (ลึก/REM)');
+      // Stages may come as separate segments (sleepState) or nested inside one session record (stages[]).
+      const staged = (x: (typeof s)[number]) => (x.sleepState && !['asleep', 'inBed', 'awake'].includes(x.sleepState)) || !!x.stages?.some((g) => ['deep', 'light', 'rem'].includes(g.stage));
+      if (isSleep && s.length && !s.some(staged)) warn.push('ไม่มีระยะหลับ (ลึก/REM)');
       const r1 = (v: number) => Math.round(v * 10) / 10;
       rows.push({
         type, label: m.label, unit: m.unit, n: s.length, days: dayset.size, perDay: dayset.size ? Math.round(s.length / dayset.size) : 0,
         gapMin: gaps.length ? r1(gaps[gaps.length >> 1]) : null, min: vals.length ? r1(Math.min(...vals)) : null, max: vals.length ? r1(Math.max(...vals)) : null,
         sources: [...new Set(s.map((x) => x.sourceName ?? x.sourceId ?? '?'))],
-        samples: s.slice(-3).reverse().map((x, i) => `${hm(x.startDate)} · ${r1(vals[vals.length - 1 - i])}${isSleep && x.sleepState ? ` ${x.sleepState}` : ''}`), warn,
+        samples: s.slice(-3).reverse().map((x, i) => `${hm(x.startDate)} · ${r1(vals[vals.length - 1 - i])}${isSleep && x.sleepState ? ` ${x.sleepState}` : ''}${isSleep && x.stages?.length ? ` (${stageSum(x.stages)})` : ''}`), warn,
       });
       note(`ตรวจ ${type}: ${s.length} รายการ`);
     } catch (e) {
