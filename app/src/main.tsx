@@ -12,6 +12,7 @@ import { checkReminders } from './domain/reminders';
 import { initNative } from './native';
 import { initHealth } from './health';
 import { loadExLib } from './domain/exlib';
+import './domain/scores'; // registers the full recovery score for coach/brief/rings
 
 autoWake();
 trimRaw();

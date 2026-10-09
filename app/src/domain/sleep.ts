@@ -22,8 +22,12 @@ export function autoWake() {
 export const nightFor = (d: Date) => sleepLog.value[dayKey(d)];
 export const hoursOf = (n?: Night) => (n?.wake ? (n.wake - n.bed) / 3600e3 : null);
 
-/** Simple recovery score: sleep duration vs 7.5h target, minus bedtime drift. 0..100 or null. */
+let hook: ((d: Date) => number | null) | null = null;
+/** domain/scores.ts registers the full score (resting HR + sleep stages + strain); this avoids an import cycle. */
+export const setRecoveryHook = (f: (d: Date) => number | null) => { hook = f; };
+/** Recovery 0..100 or null. Falls back to sleep duration vs 7.5h target minus bedtime drift. */
 export function recovery(d: Date): number | null {
+  if (hook) { const v = hook(d); if (v != null) return v; }
   const n = nightFor(d), h = hoursOf(n);
   if (h == null || !n) return null;
   const dur = Math.min(1, h / 7.5) * 85;

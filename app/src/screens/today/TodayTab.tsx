@@ -1,9 +1,10 @@
 import { useState } from 'preact/hooks';
 import { Icon, Ring, ROLE, Burst, SoWhat, Medal } from '../../ui/kit';
+import { ScoreCard, hasScores } from './Scores';
 import { tick, toast } from '../../store/ui';
 import { openBody } from '../body/BodyTab';
 import { push, goTab } from '../../store/nav';
-import { thDate, fromMin, addDays } from '../../domain/time';
+import { thDate, fromMin, addDays, dayKey } from '../../domain/time';
 import { setStatus, editBlock, patchDay, addBlock, blocksFor, type Block } from '../../domain/plan';
 import { medProgress, medsFor, isEvenDay } from '../../domain/meds';
 import { nightFor, hoursOf, recovery } from '../../domain/sleep';
@@ -50,6 +51,7 @@ export function TodayTab() {
   const allDone = v.pending.length === 0 && v.total > 0;
   const missedMode = !allDone && v.missed.length >= 3;
   const rs = rings(date), sw = soWhat(date, now);
+  const rows = hasScores(dayKey(date)) ? rs.filter((r) => r.role !== 'recovery') : rs;
   const medSlot = now < 15 * 60 ? 'morning' : 'night', mp = medProgress(medSlot, date);
   const up = v.pending.filter((b) => b !== cur && b !== next && b.start >= now - 30).slice(0, 3);
   const upcoming = [1, 2, 3, 4, 5, 6, 7].flatMap((o) => { const dd = addDays(date, o); return blocksFor(dd).filter((b) => (b.kind === 'todo' || b.kind === 'event') && b.source === 'user').map((b) => ({ b, dayLabel: o === 1 ? 'พรุ่งนี้' : thDate(dd).split(' ').slice(0, 2).join(' ') })); }).slice(0, 4);
@@ -148,8 +150,10 @@ export function TodayTab() {
       )}
 
       <div class="col" style={{ gap: 10 }}>
-        <div class="card" style={{ padding: '14px 6px 12px', display: 'grid', gridTemplateColumns: 'repeat(4,1fr)' }}>
-          {rs.map((r) => (
+        <ScoreCard date={date} />
+        {/* Recovery lives in the score card when there is watch data, so the ring row doesn't repeat it. */}
+        <div class="card" style={{ padding: '14px 6px 12px', display: 'grid', gridTemplateColumns: `repeat(${rows.length},1fr)` }}>
+          {rows.map((r) => (
             <button class="col" style={{ alignItems: 'center', gap: 6 }} onClick={() => (r.role === 'money' ? goTab('money') : r.role === 'recovery' ? openBody('trends') : openBody(r.role === 'food' ? 'eat' : 'train'))}>
               <Ring value={r.v} size={60} stroke={8} color={ROLE[r.role].c} track={ROLE[r.role].tint}><Icon n={r.icon} fill size={22} color={ROLE[r.role].ink} /></Ring>
               <span class="col" style={{ alignItems: 'center' }}><span class="num" style={{ fontSize: 15, fontWeight: 600, lineHeight: 1.3 }}>{r.val}</span><span class="muted" style={{ fontSize: 11.5, lineHeight: 1.35 }}>{r.label}</span></span>

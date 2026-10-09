@@ -6,13 +6,23 @@ import { dayKey, addDays } from './domain/time';
 import { sleepLog, type Night } from './domain/sleep';
 import { logWeight, weights } from './domain/body';
 import { workouts, type Workout } from './domain/training';
+import { profile } from './domain/profile';
 
 const isNative = Capacitor.isNativePlatform();
 export const healthState = persisted<{ on: boolean; last: number; msg: string; counts: Record<string, number> }>('healthState', { on: false, last: 0, msg: '', counts: {} });
 /** Daily numbers that have no home elsewhere: steps, resting heart rate, active kcal. */
-export const healthDaily = persisted<Record<string, { steps?: number; rhr?: number; kcal?: number }>>('healthDaily', {});
+export interface HealthDay {
+  steps?: number; rhr?: number; kcal?: number;
+  /** Minutes per heart-rate zone 1..5 (50–60…90%+ of max HR) and minutes of HR coverage that day. */
+  hrz?: number[]; hrMin?: number;
+  /** Sleep stage minutes of the night that ended this day. */
+  stg?: { deep: number; light: number; rem: number; awake: number };
+}
+export const healthDaily = persisted<Record<string, HealthDay>>('healthDaily', {});
+/** Max HR estimate (Tanaka: 208 − 0.7 × age). */
+export const hrMax = () => Math.round(208 - 0.7 * Math.max(15, new Date().getFullYear() - (profile.value.birthYear || 1996)));
 
-export const BUILD = 'hc-2026-10-09a';
+export const BUILD = 'hc-2026-10-09b';
 /** Visible trace of what the native calls did, because the permission flow runs outside the WebView. */
 export const healthLog = signal<string[]>([]);
 const note = (s: string) => { healthLog.value = [...healthLog.value.slice(-14), `${new Date().toLocaleTimeString('th-TH')} ${s}`]; };
@@ -94,6 +104,18 @@ export async function syncHealth(force = false, days = 30) {
     let n = 0; const next = { ...sleepLog.value };
     for (const [k, v] of Object.entries(best)) { if (!next[k] || next[k].source === 'health') { next[k] = v; n++; } }
     if (n) sleepLog.value = next; counts.sleep = n;
+    // Stage minutes per night: from separate segments (sleepState) or nested stages[] inside a session.
+    const stageDays: Record<string, NonNullable<HealthDay['stg']>> = {};
+    for (const [k, v] of Object.entries(best)) {
+      const g = { deep: 0, light: 0, rem: 0, awake: 0 }; let any = false;
+      for (const s of rawSleep) {
+        const a = new Date(s.startDate).getTime(), b = new Date(s.endDate).getTime();
+        if (b <= v.bed - 30 * 60e3 || a >= (v.wake ?? v.bed) + 30 * 60e3) continue;
+        if (s.stages?.length) for (const st of s.stages) { if (st.stage in g) { g[st.stage as keyof typeof g] += st.durationMinutes || 0; any = true; } }
+        else if (s.sleepState && s.sleepState in g) { g[s.sleepState as keyof typeof g] += (b - a) / 60e3; any = true; }
+      }
+      if (any && g.deep + g.light + g.rem > 0) stageDays[k] = { deep: Math.round(g.deep), light: Math.round(g.light), rem: Math.round(g.rem), awake: Math.round(g.awake) };
+    }
 
     // Weight
     const ws = (await h.readSamples({ dataType: 'weight', ...range, limit: 200, ascending: true })).samples;
@@ -110,6 +132,28 @@ export async function syncHealth(force = false, days = 30) {
         counts[key] = r.samples.length; note(`${type}: ${r.samples.length} วัน`);
       } catch (e) { note(`${type} ✗ ${e instanceof Error ? e.message : String(e)}`); }
     }
+    for (const [k, g] of Object.entries(stageDays)) daily[k] = { ...daily[k], stg: g };
+    // Fallback for days the aggregate missed: sum raw samples per source, keep the largest source (phone and watch both count steps).
+    for (const [type, key] of [['steps', 'steps'], ['calories', 'kcal']] as const) {
+      try {
+        const raw = (await h.readSamples({ dataType: type, ...range, limit: 20000, ascending: true })).samples;
+        const per: Record<string, Record<string, number>> = {};
+        for (const s of raw) { const k = dayKey(new Date(s.startDate)), src = s.sourceId ?? s.sourceName ?? '?'; ((per[k] ??= {})[src] = (per[k][src] ?? 0) + s.value); }
+        for (const [k, bySrc] of Object.entries(per)) { if (daily[k]?.[key]) continue; const v = Math.round(Math.max(...Object.values(bySrc))); if (v > 0) daily[k] = { ...daily[k], [key]: v }; }
+      } catch (e) { note(`${type} (ดิบ) ✗ ${e instanceof Error ? e.message : String(e)}`); }
+    }
+    // Heart rate → minutes per zone per day (each sample counts until the next one, max 5 min).
+    try {
+      const hr = (await h.readSamples({ dataType: 'heartRate', ...range, limit: 50000, ascending: true })).samples
+        .map((s) => ({ t: new Date(s.startDate).getTime(), v: s.value })).filter((s) => s.v > 25 && s.v < 230).sort((a, b) => a.t - b.t);
+      const mx = hrMax(), per: Record<string, { z: number[]; m: number }> = {};
+      hr.forEach((s, i) => {
+        const gap = Math.min(5, Math.max(0, ((hr[i + 1]?.t ?? s.t + 60e3) - s.t) / 60e3)), k = dayKey(new Date(s.t)), d = (per[k] ??= { z: [0, 0, 0, 0, 0], m: 0 });
+        d.m += gap; const p = s.v / mx; const zi = p >= 0.9 ? 4 : p >= 0.8 ? 3 : p >= 0.7 ? 2 : p >= 0.6 ? 1 : p >= 0.5 ? 0 : -1; if (zi >= 0) d.z[zi] += gap;
+      });
+      for (const [k, d] of Object.entries(per)) daily[k] = { ...daily[k], hrz: d.z.map((x) => Math.round(x)), hrMin: Math.round(d.m) };
+      counts.hr = Object.keys(per).length; note(`heartRate: ${hr.length} ค่า ${counts.hr} วัน`);
+    } catch (e) { note(`heartRate ✗ ${e instanceof Error ? e.message : String(e)}`); }
     healthDaily.value = daily;
 
     // Watch workouts: skip anything that overlaps a session logged in the app.
