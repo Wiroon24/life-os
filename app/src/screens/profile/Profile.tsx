@@ -7,7 +7,7 @@ import { live, type Item } from '../../store/collection';
 import { profile, settings } from '../../domain/profile';
 import { template } from '../../domain/plan';
 import { meds, restoreMed } from '../../domain/meds';
-import { bills, categories, debts, fixedTotal, paydayIn } from '../../domain/money';
+import { bills, categories, debts, pockets, paydayIn } from '../../domain/money';
 import { program } from '../../domain/training';
 import { latestW } from '../../domain/body';
 import { notif, TOPICS, tune } from '../../domain/reminders';
@@ -35,7 +35,7 @@ const Row = ({ icon, l, sub, soft, ink, go, i }: { icon: string; l: string; sub:
 // Every soft-deletable collection, so the trash can restore anything.
 const BINS: { name: string; icon: string; s: Signal<(Item & { name?: string; title?: string })[]>; restore?: (id: string) => void }[] = [
   { name: 'ตารางวัน', icon: 'calendar_view_day', s: template as never }, { name: 'ยาและผิว', icon: 'medication', s: meds as never, restore: restoreMed },
-  { name: 'บิล', icon: 'event', s: bills as never }, { name: 'หมวดเงิน', icon: 'label', s: categories as never }, { name: 'หนี้', icon: 'trending_down', s: debts as never },
+  { name: 'บิล', icon: 'event', s: bills as never }, { name: 'หมวดเงิน', icon: 'label', s: categories as never }, { name: 'หนี้', icon: 'trending_down', s: debts as never }, { name: 'กระเป๋า', icon: 'account_balance_wallet', s: pockets as never },
 ];
 
 export function Profile() {
@@ -55,7 +55,7 @@ export function Profile() {
           <Icon n="edit" size={22} color="var(--ink-2)" />
         </button>
         {([
-          ['แม่แบบ', [['dashboard_customize', 'แม่แบบทั้งหมด', 'ตารางวัน · โปรแกรมซ้อม · checklist · หมวดเงิน · บิล', '#FFE3DA', '#B83A1C', () => setV('tpl')]]],
+          ['แม่แบบ', [['dashboard_customize', 'แม่แบบทั้งหมด', 'ตารางวัน · โปรแกรมซ้อม · checklist · เป้าโภชนาการ', '#FFE3DA', '#B83A1C', () => setV('tpl')]]],
           ['ระบบ', [
             ['auto_awesome', 'ตั้งค่า AI', settings.value.apiKey ? `เชื่อมแล้ว · ${settings.value.model}` : 'ยังไม่ได้ใส่ API key · อ่านรูปและแชทยังใช้ไม่ได้', '#F1EEFF', '#5B3BE0', () => setV('ai')],
             ['link', 'การเชื่อมต่อ', 'Health Connect · กสิกร · KTC', '#E3F5E8', '#137A38', () => setV('conn')],
@@ -80,7 +80,6 @@ export function Profile() {
           ['fitness_center', 'โปรแกรมซ้อม', `${program.value.filter((d) => d.kind !== 'rest').length} วัน · ${program.value.reduce((a, d) => a + d.exercises.length, 0)} ท่า`, '#E8F8EE', '#137A38', () => push('program')],
           ['checklist', 'ยาและผิว', `${live(meds.value).length} รายการ`, '#F1EEFF', '#5B3BE0', () => push('meds')],
           ['restaurant', 'เป้าโภชนาการ', 'วันซ้อม · วันพัก', '#FFF4E3', '#9A5800', () => push('goals')],
-          ['label', 'หมวดเงินและบิล', `${live(categories.value).length} หมวด · ค่าคงที่ ${fixedTotal().toLocaleString()} ฿`, '#ECF2FF', '#1F5FD6', () => push('bills')],
         ] as [string, string, string, string, string, () => void][]).map(([icon, l, s, soft, ink, go]) => (
           <button class="card row" style={{ borderRadius: 18, padding: '12px 10px 12px 12px', minHeight: 72, textAlign: 'left' }} onClick={go}>
             <span class="medal" style={{ borderRadius: 14, background: soft, color: ink }}><Icon n={icon} fill /></span>

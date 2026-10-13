@@ -18,6 +18,8 @@ import { MoneyTab } from './screens/money/MoneyTab';
 import { Payday } from './screens/money/Payday';
 import { Debt } from './screens/money/Debt';
 import { Bills } from './screens/money/Bills';
+import { Cats } from './screens/money/Cats';
+import { PocketScreen } from './screens/money/Pockets';
 import { CoachTab } from './screens/coach/CoachTab';
 import { CoachSettings } from './screens/coach/CoachSettings';
 import { Capture } from './screens/capture/Capture';
@@ -30,7 +32,7 @@ import { profile } from './domain/profile';
 export const SCREENS: Record<string, ComponentType<any>> = {
   timeline: Timeline, meds: Meds, brief: Brief, close: CloseDay, scores: Scores,
   workout: Workout, mobility: Mobility, program: ProgramEdit, library: Library, history: History, exercise: ExerciseDetail, analysis: Analysis, pantry: Pantry, receipt: ReceiptReview, batch: Batch, shop: Shop, goals: Goals,
-  payday: Payday, debt: Debt, bills: Bills, 'coach-settings': CoachSettings, profile: Profile,
+  payday: Payday, debt: Debt, bills: Bills, cats: Cats, pocket: PocketScreen, 'coach-settings': CoachSettings, profile: Profile,
 };
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const TABS: Record<string, ComponentType<any>> = { today: TodayTab, body: BodyTab, money: MoneyTab, coach: CoachTab };

@@ -3,7 +3,7 @@ import { Icon } from '../../ui/kit';
 import { openSheet, closeSheet, toast } from '../../store/ui';
 import { add, live, update } from '../../store/collection';
 import { categories, txns, catMemory, type Cat, type CatKind } from '../../domain/money';
-import { Stepper } from '../sheets';
+import { PocketChips } from './Pockets';
 
 export const KIND_LABEL: Record<CatKind, string> = { expense: 'รายจ่าย', income: 'รายรับ', invest: 'ลงทุน', transfer: 'ย้ายบัญชี' };
 export const KIND_HINT: Record<CatKind, string> = { expense: 'หักจากงบใช้ได้วันนี้', income: 'เงินเข้า เช่น ขายของ ดอกเบี้ย', invest: 'เงินออกไปลงทุน ไม่นับเป็นรายจ่าย', transfer: 'ย้ายระหว่างบัญชี จ่ายบัตร ไม่นับเป็นรายจ่าย' };
@@ -16,12 +16,13 @@ export function openCategoryEditor(existing: Cat | null, onSaved?: (name: string
 }
 
 function Editor({ c, onSaved, presetKind }: { c: Cat | null; onSaved?: (n: string) => void; presetKind: CatKind }) {
-  const [name, setName] = useState(c?.name ?? ''), [kind, setKind] = useState<CatKind>(c?.kind ?? presetKind), [icon, setIcon] = useState(c?.icon ?? 'label'), [budget, setBudget] = useState(c?.budget ?? 0);
+  const [name, setName] = useState(c?.name ?? ''), [kind, setKind] = useState<CatKind>(c?.kind ?? presetKind), [icon, setIcon] = useState(c?.icon ?? 'label'), [pocket, setPocket] = useState(c?.pocket);
+  const budget = c?.budget ?? 0; // budgets now live on pockets; kept for older data
   const save = () => {
     const n = name.trim(); if (!n) return toast('ใส่ชื่อหมวดก่อน');
     if (live(categories.value).some((x) => x.name === n && x.id !== c?.id)) return toast('มีหมวดชื่อนี้แล้ว');
     const col = KIND_COLOR[kind] ?? PALETTE[live(categories.value).length % PALETTE.length];
-    const data = { name: n, kind, income: kind === 'income', icon, budget: kind === 'expense' ? budget : 0, soft: col[0], ink: col[1], bar: col[2] };
+    const data = { name: n, kind, income: kind === 'income', icon, budget: kind === 'expense' ? budget : 0, soft: col[0], ink: col[1], bar: col[2], pocket };
     if (c) {
       update(categories, c.id, data);
       if (c.name !== n) { txns.value = txns.value.map((t) => (t.cat === c.name ? { ...t, cat: n } : t)); catMemory.value = Object.fromEntries(Object.entries(catMemory.value).map(([k, v]) => [k, v === c.name ? n : v])); }
@@ -36,7 +37,9 @@ function Editor({ c, onSaved, presetKind }: { c: Cat | null; onSaved?: (n: strin
         <span class="cap muted" style={{ display: 'block', marginTop: 6 }}>{KIND_HINT[kind]}</span></div>
       <div><span class="label">ไอคอน</span>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 6 }}>{ICONS.map((i) => <button class="press" aria-label={i} style={{ height: 48, borderRadius: 14, background: icon === i ? 'var(--ink)' : 'var(--bg)', color: icon === i ? '#fff' : 'var(--ink)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setIcon(i)}><Icon n={i} fill size={22} /></button>)}</div></div>
-      {kind === 'expense' && <div class="row" style={{ justifyContent: 'space-between' }}><span class="t16">งบต่อรอบ</span><Stepper value={budget} onChange={setBudget} step={100} fmt={(v) => v.toLocaleString() + ' ฿'} w={90} /></div>}
+      <div><span class="label">{kind === 'income' ? 'เงินเข้ากระเป๋า' : 'ใช้เงินจากกระเป๋า'} (ค่าเริ่มต้น)</span>
+        <PocketChips value={pocket} onPick={setPocket} none />
+        <span class="cap muted" style={{ display: 'block', marginTop: 6 }}>รายการใหม่หมวดนี้จะเลือกกระเป๋านี้ให้ แก้ได้ทีละรายการ · งบต่อเดือนตั้งที่กระเป๋า</span></div>
       <button class="btn primary lg block" onClick={save}>บันทึก</button>
     </div>
   );
