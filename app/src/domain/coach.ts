@@ -5,7 +5,7 @@ import { profile } from './profile';
 import { clock, dayKey, fromMin, toMin, DOW_SHORT } from './time';
 import { appNow, appNowMin, blocksFor, editBlock, addBlock, statusOf, setStatus } from './plan';
 import { totalsOn, targetsFor, entriesOn, logFood, unlogFood, suggestForProtein, fridge, daysLeft } from './food';
-import { addTxn, confirmTxns, safeToSpend, txns, categories } from './money';
+import { addTxn, confirmTxns, safeToSpend, txns, categories, cardOwes } from './money';
 import { planFor, swapDays, weekIds, dayById, workouts } from './training';
 import { latestW, avg7, rate, logWeight, weekSummary, proposals, checkins } from './body';
 import { recovery, nightFor, hoursOf } from './sleep';
@@ -49,7 +49,7 @@ function snapshot() {
   const blocks = blocksFor(d).map((b) => `${fromMin(b.start)} ${b.title} [${statusOf(k, b, now) ?? 'รอ'}]`).join('; ');
   const week = weekIds(d).map((id, i) => `${DOW_SHORT[i]}=${dayById(id).name}`).join(', ');
   const fr = fridge.value.filter((b) => b.qty > 0).map((b) => `${b.name}×${b.qty} (${b.k}kcal P${b.p}, เหลือ ${daysLeft(b)} วัน)`).join('; ') || 'ว่าง';
-  const n = nightFor(d), h = hoursOf(n);
+  const n = nightFor(d), h = hoursOf(n), owed = cardOwes().filter((o) => o.from && o.amount > 0).reduce((a, o) => a + o.amount, 0);
   return [
     `ตอนนี้ ${DOW_SHORT[d.getDay()]} ${k} ${clock()}`,
     `แผนวันนี้: ${blocks}`,
@@ -59,7 +59,7 @@ function snapshot() {
     `ของในครัว (วัตถุดิบยังไม่ได้ทำ): ${pantryText()}`,
     `น้ำหนักเฉลี่ย 7 วัน ${avg7(d)?.toFixed(1) ?? latestW()?.kg ?? '-'} kg · อัตรา ${rate(d)?.toFixed(2) ?? '-'} kg/สัปดาห์`,
     `นอนเมื่อคืน ${h?.toFixed(1) ?? '-'} ชม. · ฟื้นตัว ${recovery(d) ?? '-'}`,
-    `เงิน: ใช้ได้วันนี้ ${Math.round(s.left)} ฿ · ใช้ไป ${s.usedPct}% ของงบรอบนี้ (จังหวะควรเป็น ${s.pacePct}%)`,
+    `เงิน: ใช้ได้วันนี้ ${Math.round(s.left)} ฿ · ใช้ไป ${s.usedPct}% ของ${s.mode === 'pocket' ? 'กระเป๋าค่ากิน' : 'งบรอบนี้'} (จังหวะควรเป็น ${s.pacePct}%)${s.pendingOut > 0 ? ` · ยังไม่นับรอยืนยัน ${Math.round(s.pendingOut)} ฿` : ''}${owed > 0 ? ` · ต้องย้ายเงินสำรองบัตร ${Math.round(owed)} ฿ (ถามได้ว่าย้ายหรือยัง)` : ''}`,
   ].join('\n');
 }
 

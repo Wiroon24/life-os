@@ -1,3 +1,4 @@
+import { effect, untracked } from '@preact/signals';
 import { persisted, uid } from '../store/persist';
 import type { Item } from '../store/collection';
 import { live } from '../store/collection';
@@ -12,10 +13,11 @@ export type CatKind = 'expense' | 'income' | 'invest' | 'transfer';
 export interface Cat extends Item { name: string; budget: number; icon: string; soft: string; ink: string; bar: string; income?: boolean; kind?: CatKind; pocket?: string }
 export interface CreditCard extends Item { name: string; last4?: string; limit?: number; cutDay: number; dueDay: number; apr?: number; payInFull: boolean; note?: string }
 /** `pocket` = where it is paid from (default: the salary account). */
-export interface Bill extends Item { name: string; amount: number; dueDay: number; approx?: boolean; kind: 'fixed' | 'card' | 'sub'; fixed: boolean; pocket?: string }
+/** `debtId` = this bill is a debt's instalment (name and amount follow the debt, so it is entered once). */
+export interface Bill extends Item { name: string; amount: number; dueDay: number; approx?: boolean; kind: 'fixed' | 'card' | 'sub'; fixed: boolean; pocket?: string; debtId?: string }
 /** `pocket` = whose money this is. Paid by credit card → the pocket owes that amount to the card's reserve pocket until moved. */
 /** `via` = e-wallet the card was charged through (e.g. TrueMoney on KTC); both notifications became this one record. */
-export interface Txn { id: string; ts: number; amount: number; inc: boolean; merchant: string; cat: string; account: string; card?: string; pocket?: string; via?: string; status: 'pending' | 'confirmed'; raw?: string; source?: 'notif' | 'slip' | 'manual' | 'text'; fx?: { cur: string; amt: number } }
+export interface Txn { id: string; ts: number; amount: number; inc: boolean; merchant: string; cat: string; account: string; card?: string; pocket?: string; via?: string; billId?: string; status: 'pending' | 'confirmed'; raw?: string; source?: 'notif' | 'slip' | 'manual' | 'text'; fx?: { cur: string; amt: number } }
 
 /**
  * Pockets mirror the real pockets in MAKE by KBank (plus the salary account).
@@ -29,7 +31,7 @@ export interface Move { id: string; ts: number; from: string; to: string; amount
 export interface Debt extends Item { name: string; icon: string; balance: number; orig: number; payment: number; rate: number; rateAfter?: number; fixedUntil?: string; meta: string; inBills: boolean; type?: string; rateType?: 'reducing' | 'fixed'; monthsLeft?: number }
 
 const SEED_EXTRA_RAW: [string, string, string, string, string, CatKind][] = [
-  ['เงินเดือน', 'payments', '#E3F5E8', '#137A38', '#22B455', 'transfer'], ['ลงทุน', 'trending_up', '#E6F6FB', '#0B6E8A', '#22A6C9', 'invest'], ['ย้ายบัญชี', 'swap_horiz', '#EFEDE7', '#6B6962', '#A3A097', 'transfer'], ['จ่ายบัตร/หนี้', 'credit_score', '#EFEDE7', '#6B6962', '#A3A097', 'transfer'],
+  ['เงินเดือน', 'payments', '#E3F5E8', '#137A38', '#22B455', 'transfer'], ['บิลประจำ', 'event', '#EFEDE7', '#6B6962', '#A3A097', 'transfer'], ['ลงทุน', 'trending_up', '#E6F6FB', '#0B6E8A', '#22A6C9', 'invest'], ['ย้ายบัญชี', 'swap_horiz', '#EFEDE7', '#6B6962', '#A3A097', 'transfer'], ['จ่ายบัตร/หนี้', 'credit_score', '#EFEDE7', '#6B6962', '#A3A097', 'transfer'],
 ];
 const SEED_EXTRA: ReturnType<typeof C>[] = [];
 const C = (name: string, budget: number, icon: string, soft: string, ink: string, bar: string, kind: CatKind = 'expense') => ({ name, budget, icon, soft, ink, bar, kind, income: kind === 'income' });
@@ -109,6 +111,25 @@ export interface PayPlan { debt: number; reserve: number; applied?: boolean; fil
 export const payPlans = persisted<Record<string, PayPlan>>('payPlans', { default: { debt: 1500, reserve: 3100 } });
 export type DebtMode = 'aval' | 'snow' | 'manual' | 'none';
 export const debtPlan = persisted<{ mode: DebtMode; extra: number; target?: string; lump?: number; lumpTo?: string }>('debtPlan', { mode: 'aval', extra: 1500 });
+/**
+ * A debt with `inBills` appears in the bill list as a linked bill that follows the debt's instalment.
+ * Existing unlinked bills with the same name are adopted. Runs on load and whenever debts change.
+ */
+function syncDebtBills(ds: Debt[]) {
+  let next = bills.value, changed = false;
+  const edit = (id: string, patch: Partial<Bill>) => { next = next.map((b) => (b.id === id ? { ...b, ...patch, updatedAt: Date.now() } : b)); changed = true; };
+  for (const d of ds) {
+    const own = next.find((b) => b.debtId === d.id);
+    if (d.deletedAt || !d.inBills || d.payment <= 0) { if (own && !own.deletedAt) edit(own.id, { deletedAt: Date.now() }); continue; }
+    if (own) { if (own.deletedAt || own.amount !== d.payment || own.name !== d.name) edit(own.id, { deletedAt: undefined, amount: d.payment, name: d.name }); continue; }
+    const same = next.find((b) => !b.debtId && !b.deletedAt && b.name === d.name);
+    if (same) { edit(same.id, { debtId: d.id, amount: d.payment }); continue; }
+    next = [...next, { id: uid(), order: Math.max(0, ...next.map((b) => b.order)) + 1, name: d.name, amount: d.payment, dueDay: 1, kind: 'fixed', fixed: true, debtId: d.id, source: 'user', updatedAt: Date.now() }]; changed = true;
+  }
+  if (changed) bills.value = next;
+}
+effect(() => { const ds = debts.value; untracked(() => syncDebtBills(ds)); });
+
 /** Older installs: the car loan is fixed-rate (interest locked for the whole contract). */
 debts.value = debts.value.map((d) => (d.name === 'รถ' && d.source === 'seed' && !d.rateType ? { ...d, rateType: 'fixed' as const, monthsLeft: d.monthsLeft ?? 56, type: 'รถ' } : d));
 export const isFixed = (d: Debt) => d.rateType === 'fixed';
@@ -153,7 +174,9 @@ export function spentIn(c = cycle(), until = Infinity) {
  */
 export function safeToSpend(today = new Date()) {
   const daily = live(pockets.value).filter((p) => p.daily && p.balanceAt != null);
-  if (!daily.length) return { ...planSafeToSpend(today), mode: 'plan' as const, pockets: [] as Pocket[] };
+  /** Unconfirmed spending is not in the numbers yet; shown next to them so a pile of pending items is not a surprise. */
+  const pendingOut = (ids?: Set<string>) => txns.value.filter((t) => t.status === 'pending' && !t.inc && kindOfCat(t.cat) === 'expense' && (!ids || (t.pocket && ids.has(t.pocket)))).reduce((a, t) => a + t.amount, 0);
+  if (!daily.length) return { ...planSafeToSpend(today), mode: 'plan' as const, pockets: [] as Pocket[], pendingOut: pendingOut() };
   const c = cycle(today), ids = new Set(daily.map((p) => p.id));
   const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
   const out = (from: number, to = Infinity) => txns.value.filter((t) => t.status === 'confirmed' && t.pocket && ids.has(t.pocket) && t.ts >= from && t.ts < to && t.ts >= pocketStart.value)
@@ -162,7 +185,7 @@ export function safeToSpend(today = new Date()) {
   const allowance = Math.max(0, (avail + todaySpent) / c.daysLeft), left = allowance - todaySpent;
   const budget = daily.reduce((a, p) => a + p.monthly, 0), spent = out(c.start.getTime(), c.end.getTime());
   const usedPct = budget > 0 ? Math.round((spent / budget) * 100) : 0, pacePct = Math.round(((c.dayNo - 1) / c.totalDays) * 100);
-  return { left, allowance, todaySpent, budget, spent, usedPct, pacePct, cycle: c, tomorrow: Math.max(0, avail / Math.max(1, c.daysLeft - 1)), mode: 'pocket' as const, pockets: daily, avail };
+  return { left, allowance, todaySpent, budget, spent, usedPct, pacePct, cycle: c, tomorrow: Math.max(0, avail / Math.max(1, c.daysLeft - 1)), mode: 'pocket' as const, pockets: daily, avail, pendingOut: pendingOut(ids) };
 }
 
 function planSafeToSpend(today = new Date()) {
@@ -212,8 +235,11 @@ export function addTxn(t: Omit<Txn, 'id' | 'cat' | 'status'> & { cat?: string; s
     const dup = findDuplicate(t); if (dup) return dup;
     const pair = findWalletPair(t); if (pair) return mergeWalletPair(pair, t);
   }
-  const cat = t.cat ?? guessCat(t.merchant, t.inc, t.amount, t.ts);
-  const tx: Txn = { id: uid(), status: 'pending', ...t, cat, pocket: t.pocket ?? defaultPocket({ ...t, cat }) };
+  // A bank payment that fits a recurring bill is that bill: marks it paid, and (not on a card) is not variable spending.
+  const bill = t.source === 'notif' && !t.cat ? matchBill(t) : undefined, onCard = !!cardOfTxn(t);
+  const asBill = bill && !onCard;
+  const cat = t.cat ?? (asBill ? BILL_CAT : guessCat(t.merchant, t.inc, t.amount, t.ts));
+  const tx: Txn = { id: uid(), status: 'pending', ...t, cat, pocket: t.pocket ?? (asBill ? bill.pocket ?? mainPocket()?.id : defaultPocket({ ...t, cat })), ...(bill ? { billId: bill.id } : {}) };
   txns.value = [tx, ...txns.value];
   return tx;
 }
@@ -242,7 +268,34 @@ export function defaultPocket(t: Pick<Txn, 'merchant' | 'cat' | 'account' | 'car
   return atBank.length === 1 ? atBank[0].id : undefined;
 }
 /** Change a transaction's category; its pocket follows the new category unless the shop has its own remembered pocket. */
-export const withCat = (t: Txn, cat: string, inc: boolean): Txn => ({ ...t, cat, inc, pocket: defaultPocket({ ...t, cat }) ?? t.pocket });
+export const withCat = (t: Txn, cat: string, inc: boolean): Txn => {
+  // Re-categorising a bank payment away from "บิลประจำ" means it was not that bill after all.
+  const { billId, ...rest } = t, keepBill = billId && (cat === BILL_CAT || cardOfTxn(t));
+  return { ...rest, ...(keepBill ? { billId } : {}), cat, inc, pocket: defaultPocket({ ...t, cat }) ?? t.pocket };
+};
+
+/* ---------- Bill matching ---------- */
+export const BILL_CAT = 'บิลประจำ';
+/**
+ * Bill that a payment most likely settles: amount equal (±20% for approximate bills) and paid within 3 days of the
+ * due date (7 when the shop name contains the bill name). Needs no knowledge of the bank's SMS wording.
+ * Bills already settled around that date are skipped so one bill is not claimed twice.
+ */
+export function matchBill(t: Pick<Txn, 'ts' | 'amount' | 'inc' | 'merchant' | 'fx'>): Bill | undefined {
+  if (t.inc || t.fx) return undefined;
+  const at = new Date(t.ts), m = t.merchant.toLowerCase();
+  let best: { b: Bill; gap: number } | undefined;
+  for (const b of live(bills.value)) {
+    if (b.amount <= 0 || Math.abs(t.amount - b.amount) > b.amount * (b.approx ? 0.2 : 0.005) + 0.5) continue;
+    const window = m.includes(b.name.toLowerCase()) ? 7 : 3;
+    const gap = Math.min(...[-1, 0, 1].map((o) => Math.abs(dayDiff(at, dayOf(at.getFullYear(), at.getMonth() + o, b.dueDay)))));
+    if (gap > window || billPaid(b, at)) continue;
+    if (!best || gap < best.gap) best = { b, gap };
+  }
+  return best?.b;
+}
+/** A payment tagged to this bill within 10 days of `due` (pending or confirmed). */
+export const billPaid = (b: Bill, due: Date) => txns.value.some((t) => t.billId === b.id && Math.abs(dayDiff(new Date(t.ts), due)) <= 10);
 
 /** Internal moves between own accounts are recorded as Moves, so a transfer notification must not count twice. */
 const ledger = (t: Txn) => t.status === 'confirmed' && t.cat !== 'ย้ายบัญชี' && t.ts >= pocketStart.value;
@@ -320,10 +373,10 @@ export const monthLabel = (m: number) => { const d = new Date(); d.setMonth(d.ge
 
 /* ---------- Bills on the day plan ---------- */
 export function upcomingBills(today = new Date(), withinDays = 40) {
-  const out: { id: string; name: string; amount: number; date: Date; days: number; approx?: boolean; card?: boolean }[] = [];
+  const out: { id: string; name: string; amount: number; date: Date; days: number; approx?: boolean; card?: boolean; paid?: boolean }[] = [];
   for (const b of live(bills.value)) for (const off of [0, 1]) {
     const d = new Date(today.getFullYear(), today.getMonth() + off, b.dueDay), days = Math.round((d.getTime() - new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime()) / 864e5);
-    if (days >= 0 && days <= withinDays) { out.push({ id: b.id, name: b.name, amount: b.amount, date: d, days, approx: b.approx }); break; }
+    if (days >= 0 && days <= withinDays) { out.push({ id: b.id, name: b.name, amount: b.amount, date: d, days, approx: b.approx, paid: billPaid(b, d) }); break; }
   }
   for (const cd of live(cards.value)) {
     // Closed statement still to pay → its amount; otherwise the next due date with the open period so far (still growing).
@@ -359,7 +412,7 @@ export function cardStatement(cd: CreditCard, today = new Date()) {
   };
 }
 
-addProvider((date) => upcomingBills(date, 0).map((b): Block => ({
+addProvider((date) => upcomingBills(date, 0).filter((b) => !b.paid).map((b): Block => ({
   id: 'bill:' + b.id + ':' + dayKey(date), order: 0, start: 20 * 60, dur: 10, role: 'money', title: `จ่าย${b.name} ${b.amount ? (b.approx ? '~' : '') + Math.round(b.amount).toLocaleString() + ' ฿' : ''}`.trim(), icon: 'credit_card', days: [], kind: 'bill', sub: b.card ? 'จ่ายเต็ม เลี่ยงดอกเบี้ย' : 'ครบกำหนดวันนี้',
 })));
 export const nextPayday = (today = new Date()) => cycle(today).end;
@@ -440,3 +493,35 @@ function repairWalletPairs() {
   }
 }
 repairWalletPairs();
+
+/* ---------- Safety + reporting ---------- */
+const r0 = (n: number) => Math.round(n).toLocaleString();
+/** Reasons a pocket must not be deleted yet (empty = safe). Deleting would silently lose money tracking. */
+export function pocketBlockers(p: Pocket): string[] {
+  const out: string[] = [], bal = pocketBalance(p);
+  if (p.kind === 'main' && live(pockets.value).filter((x) => x.kind === 'main').length <= 1) out.push('เป็นบัญชีรับเงินเดือนเพียงใบเดียว');
+  if (Math.abs(bal) >= 1) out.push(`ยังมียอด ${r0(bal)} ฿ ย้ายออกก่อน`);
+  if (cardOwes().some((o) => o.to.id === p.id || o.from?.id === p.id)) out.push('ยังมียอดต้องย้ายเงินค้าง');
+  const cd = p.cardId ? live(cards.value).find((c) => c.id === p.cardId) : undefined; if (cd) out.push(`เป็นกระเป๋าสำรองของบัตร ${cd.name}`);
+  const cs = live(categories.value).filter((c) => c.pocket === p.id); if (cs.length) out.push(`หมวด ${cs.map((c) => c.name).join(', ')} ใช้เป็นค่าเริ่มต้น`);
+  const bs = live(bills.value).filter((b) => b.pocket === p.id); if (bs.length) out.push(`บิล ${bs.map((b) => b.name).join(', ')} จ่ายจากกระเป๋านี้`);
+  const pend = txns.value.filter((t) => t.pocket === p.id && t.status === 'pending').length; if (pend) out.push(`มีรายการรอยืนยัน ${pend} รายการ`);
+  return out;
+}
+
+/** Plain-text money status for the coach: pockets, cards, what still has to be moved. */
+export function moneyReport(today = new Date()): string[] {
+  const c = cycle(today), s = safeToSpend(today), out: string[] = [];
+  out.push(`ใช้ได้วันนี้ ${r0(s.left)} ฿ (${s.mode === 'pocket' ? `จากกระเป๋า ${s.pockets.map((p) => p.name).join(', ')} เหลือ ${r0('avail' in s ? s.avail ?? 0 : 0)} ฿` : 'ยังไม่ได้เช็คยอดจริง ใช้สูตรจากเงินเดือน'}) · ใช้ไป ${s.usedPct}% ของงบ (จังหวะควรเป็น ${s.pacePct}%)${s.pendingOut > 0 ? ` · ยังไม่นับรายการรอยืนยัน ${r0(s.pendingOut)} ฿` : ''}`);
+  for (const p of livePockets()) {
+    const bal = pocketBalance(p), av = pocketAvailable(p), fill = p.monthly + (p.partner ?? 0);
+    out.push(`- กระเป๋า ${p.name} (${POCKET_KIND[p.kind].l}): ${p.kind === 'card' ? `มี ${r0(bal)} ฿ รอย้ายเข้า ${r0(pocketIncoming(p))}` : `ใช้ได้จริง ${r0(av)} ฿${Math.abs(bal - av) >= 1 ? ` (ใน MAKE ${r0(bal)})` : ''}`}${fill ? ` · ใช้เดือนนี้ ${r0(pocketSpent(p, c))}/${r0(fill)}` : ''}${p.balanceAt == null ? ' [ยังไม่ได้เช็คยอดจริง]' : ''}`);
+  }
+  for (const cd of live(cards.value)) {
+    const st = cardStatement(cd, today), rp = reserveOf(cd), have = rp ? pocketBalance(rp) : 0;
+    out.push(`- บัตร ${cd.name}: ${st.due.amount > 0 && st.due.days >= 0 ? `ต้องจ่าย ${r0(st.due.amount)} ฿ ภายใน ${st.due.days} วัน · ` : ''}ใช้รอบนี้ ${r0(st.amount)} ฿ (ตัดรอบอีก ${st.daysToCut} วัน) · สำรองไว้ ${r0(have)} ฿`);
+  }
+  const owes = cardOwes().filter((o) => o.from && o.amount > 0.5);
+  if (owes.length) out.push(`- ต้องย้ายเงินใน MAKE: ${owes.map((o) => `${o.from!.name} → ${o.to.name} ${r0(o.amount)}`).join(', ')}`);
+  return out;
+}

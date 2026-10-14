@@ -4,7 +4,8 @@ import { appNow, appNowMin, blocksFor, statusOf } from './plan';
 import { dayKey, fromMin, toMin } from './time';
 import { medProgress } from './meds';
 import { entriesOn, water, WATER_GOAL } from './food';
-import { pending } from './money';
+import { pending, cardOwes, cardStatement, cards, reserveOf, pocketBalance } from './money';
+import { live } from '../store/collection';
 
 export type Topic = 'workout' | 'meds' | 'brief' | 'food' | 'water' | 'money' | 'bills' | 'checkin' | 'blocks';
 export const TOPICS: { k: Topic; l: string; s: string; time?: boolean }[] = [
@@ -58,6 +59,16 @@ export function checkReminders() {
   if (n.on.brief && n.time.brief != null && now >= n.time.brief && now < n.time.brief + 60) fire('brief', 'สรุปตอนตื่น', 'แผนวันนี้ + 3 เรื่องสำคัญ');
   if (n.on.food && now >= tune().foodFrom && now < tune().foodTo) { const last = entriesOn(d).at(-1); if (!last || now - toMin(last.time) >= tune().foodGap) fire(`food:${Math.floor(now / tune().foodGap)}`, 'ยังไม่ได้บันทึกอาหาร', 'กินอะไรไปหรือยัง'); }
   if (n.on.water) { const ml = water.value[k] ?? 0, tn = tune(); const slot = waterSlots(ml).filter((s) => now >= s.at && now < s.at + 5).at(-1); if (slot) fire(`water:${slot.at}`, 'ดื่มน้ำได้แล้ว', `วันนี้ ${ml.toLocaleString()} จาก ${WATER_GOAL.toLocaleString()} ml · เหลืออีก ${slot.left.toLocaleString()} ml`); void tn; }
+  // Card money: once a day at the bills time, remind to move money into the card reserve and warn when a due statement is not covered.
+  if (n.on.bills && n.time.bills != null && now >= n.time.bills && now < n.time.bills + 60) {
+    const owes = cardOwes().filter((o) => o.from && o.amount > 0.5), tot = owes.reduce((a, o) => a + o.amount, 0), f = (x: number) => Math.round(x).toLocaleString();
+    if (tot >= 1) fire('card-move', `ต้องย้ายเงินสำรองบัตร ${f(tot)} ฿`, owes.map((o) => `${o.from!.name} → ${o.to.name} ${f(o.amount)}`).join(' · '));
+    for (const cd of live(cards.value)) {
+      const st = cardStatement(cd, d); if (st.due.amount <= 0 || st.due.days < 0 || st.due.days > 3) continue;
+      const r = reserveOf(cd), have = r ? pocketBalance(r) : 0, gap = st.due.amount - have;
+      fire(`card-due:${cd.id}`, `บัตร ${cd.name} ครบกำหนด${st.due.days === 0 ? 'วันนี้' : `อีก ${st.due.days} วัน`} ${f(st.due.amount)} ฿`, gap > 0.5 ? `สำรองไว้ ${f(have)} ฿ ยังขาด ${f(gap)} ฿` : 'สำรองครบแล้ว พร้อมจ่าย');
+    }
+  }
   if (n.on.money) { const p = pending().length; if (p > 0) fire(`money:${p}`, `มีรายการรอยืนยัน ${p} รายการ`); }
   if (n.on.checkin && d.getDay() === 0 && n.time.checkin != null && now >= n.time.checkin && now < n.time.checkin + 60) fire('checkin', 'เช็กอินประจำสัปดาห์', '2 นาทีกับโค้ช');
 }

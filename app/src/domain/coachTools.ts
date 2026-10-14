@@ -8,7 +8,7 @@ import { customTargets, aiTargets, targetsFor, foodLog, water, WATER_GOAL, tdee,
 import { sortedW, avg7, rate, inbodies, MILESTONES, START_KG } from './body';
 import { sleepLog, hoursOf } from './sleep';
 import { medLog, meds } from './meds';
-import { cycle, safeToSpend, categories, catSpend, pending, debts, debtPlan, simulate, owedOf, monthLabel } from './money';
+import { cycle, moneyReport, categories, catSpend, pending, debts, debtPlan, simulate, owedOf, monthLabel } from './money';
 import { live } from '../store/collection';
 import { healthDaily } from '../health';
 import { pantry, addStock, useStock, findStock, daysLeftOf, macroOf, type PantryKind } from './pantry';
@@ -67,10 +67,10 @@ function report(topic: Topic, n: number): string {
     const act = live(meds.value); if (act.length) { const days = past.map(dayKey).filter((k) => medLog.value[k]); out.push(`- ยา/สกินแคร์: มีติ๊กใน ${days.length}/${past.length} วัน`); }
   }
   if (T('money')) {
-    const c = cycle(), s = safeToSpend(appNow());
-    out.push(`## เงิน: รอบ ${dayKey(c.start)} ถึง ${dayKey(c.end)} · ใช้ไป ${s.usedPct}% ของงบ (จังหวะควรเป็น ${s.pacePct}%) · ใช้ได้วันนี้ ${r0(s.left)} ฿ · รายการรอยืนยัน ${pending().length}`);
-    const cats = categories.value.filter((x) => !x.deletedAt && (x.kind ?? 'expense') === 'expense').map((x) => ({ n: x.name, b: x.budget, s: catSpend(x.name, c) })).filter((x) => x.s > 0 || x.b > 0);
-    out.push(`- แยกหมวด: ${cats.map((x) => `${x.n} ${r0(x.s)}${x.b ? '/' + x.b : ''}`).join(', ')}`);
+    const c = cycle();
+    out.push(`## เงิน: รอบ ${dayKey(c.start)} ถึง ${dayKey(c.end)} · รายการรอยืนยัน ${pending().length}`, ...moneyReport(appNow()));
+    const cats = categories.value.filter((x) => !x.deletedAt && (x.kind ?? 'expense') === 'expense').map((x) => ({ n: x.name, s: catSpend(x.name, c) })).filter((x) => x.s > 0);
+    if (cats.length) out.push(`- แยกหมวด (ยืนยันแล้ว): ${cats.map((x) => `${x.n} ${r0(x.s)}`).join(', ')}`);
     const ds2 = live(debts.value), sim = simulate(debtPlan.value.extra, debtPlan.value.mode, debtPlan.value);
     out.push(`- หนี้: ${ds2.map((d) => `${d.name} ${r0(owedOf(d))}${d.rateType === 'fixed' ? ' (ดอกคงที่)' : ` @${d.rate}%`}`).join(', ')} · แผนโปะ ${debtPlan.value.mode} +${debtPlan.value.extra}/เดือน → หมด ${monthLabel(sim.end)}`);
   }

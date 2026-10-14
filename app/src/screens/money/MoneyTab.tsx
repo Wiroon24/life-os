@@ -180,6 +180,7 @@ export function MoneyTab() {
         <span class="muted" style={{ fontSize: 15, fontWeight: 600 }}>ใช้ได้วันนี้{s.mode === 'pocket' ? ` · ${s.pockets.map((p) => p.name).join(', ')}` : ''}</span>
         <span class="num" style={{ fontSize: 64, fontWeight: 600, lineHeight: 1, letterSpacing: '-.02em', color: s.left < 0 ? 'var(--error)' : s.left < 150 ? '#B83A1C' : 'var(--ink)' }}>{s.left < 0 ? '−' : ''}{fmt(Math.abs(s.left))}<span style={{ fontSize: 28, fontWeight: 500 }}> ฿</span></span>
         <span style={{ fontSize: 15, lineHeight: 1.5 }}>เหลืออีก <b style={{ fontWeight: 600 }}>{daysLeft} วัน</b> ถึงเงินเดือน{s.mode === 'pocket' && 'avail' in s ? <> · ในกระเป๋าเหลือ <b class="num" style={{ fontWeight: 600 }}>{fmt(s.avail ?? 0)} ฿</b></> : <> · ใช้ไปแล้ว <b class="num" style={{ fontWeight: 600 }}>{s.usedPct}%</b> ของงบ</>}</span>
+        {s.pendingOut > 0 && <span style={{ fontSize: 13.5, color: '#B83A1C', fontWeight: 600 }}>ยังไม่นับ {fmt(s.pendingOut)} ฿ ที่รอยืนยัน · ยืนยันแล้วเหลือประมาณ {fmt(s.left - s.pendingOut)} ฿</span>}
       </div>
       {s.budget > 0 && <div class="card" style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
         <div style={{ position: 'relative', height: 14, borderRadius: 999, background: 'var(--money-tint)' }}>

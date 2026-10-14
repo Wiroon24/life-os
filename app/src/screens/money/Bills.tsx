@@ -31,10 +31,10 @@ export function Bills() {
           return (
             <div class="row" style={{ gap: 10, minHeight: 64, boxShadow: i ? 'inset 0 1px 0 var(--surface-2)' : 'none' }}>
               <span class="col" style={{ width: 44, alignItems: 'center', flex: 'none' }}><span class="num" style={{ fontSize: 20, fontWeight: 600, lineHeight: 1.1 }}>{b.date.getDate()}</span><span class="muted" style={{ fontSize: 11.5 }}>{thDate(b.date).split(' ')[2]}</span></span>
-              <span class="col grow"><span style={{ fontSize: 15.5, fontWeight: 600 }}>{b.name}</span>{!edit ? <span style={{ fontSize: 12.5, color: b.days <= 3 ? '#B83A1C' : 'var(--ink-2)', fontWeight: b.days <= 3 ? 600 : 400 }}>{b.days === 0 ? 'วันนี้' : `อีก ${b.days} วัน`} · จาก {from(b)}</span> : <span class="muted" style={{ fontSize: 12.5 }}>จาก {from(b)}{bill && !bill.fixed ? ' · ไม่หักจากแผนเงินเดือน' : ''}</span>}</span>
+              <span class="col grow"><span style={{ fontSize: 15.5, fontWeight: 600 }}>{b.name}</span>{!edit ? ('paid' in b && b.paid ? <span style={{ fontSize: 12.5, color: 'var(--workout-ink)', fontWeight: 600 }}>จ่ายแล้ว ✓ · จาก {from(b)}</span> : <span style={{ fontSize: 12.5, color: b.days <= 3 ? '#B83A1C' : 'var(--ink-2)', fontWeight: b.days <= 3 ? 600 : 400 }}>{b.days === 0 ? 'วันนี้' : `อีก ${b.days} วัน`} · จาก {from(b)}</span>) : <span class="muted" style={{ fontSize: 12.5 }}>จาก {from(b)}{bill?.debtId ? ' · ตามค่างวดในหน้าหนี้' : ''}{bill && !bill.fixed ? ' · ไม่หักจากแผนเงินเดือน' : ''}</span>}</span>
               {!edit ? <span class="num" style={{ fontSize: 16, fontWeight: 600, paddingRight: 6 }}>{b.approx ? '~' : ''}{fmt(b.amount)}</span> : bill && <>
                 <button class="btn" style={{ height: 40, padding: '0 10px', background: 'var(--bg)', fontSize: 14 }} onClick={() => editBill(bill)}>{fmt(bill.amount)}</button>
-                <button class="btn icon" style={{ width: 36, color: 'var(--error)' }} onClick={() => remove(bills, bill.id, `ลบ ${bill.name}`)} aria-label="ลบ"><Icon n="delete" size={22} /></button>
+                <button class="btn icon" style={{ width: 36, color: 'var(--error)' }} onClick={() => { if (bill.debtId) update(debts, bill.debtId, { inBills: false }); else remove(bills, bill.id, `ลบ ${bill.name}`); }} aria-label="ลบ"><Icon n="delete" size={22} /></button>
                 <span class="col"><button style={{ height: 22 }} disabled={i === 0} onClick={() => move(bills, bill.id, i - 1)} aria-label="ขึ้น"><Icon n="expand_less" size={20} color="var(--ink-3)" /></button><button style={{ height: 22 }} disabled={i === arr.length - 1} onClick={() => move(bills, bill.id, i + 1)} aria-label="ลง"><Icon n="expand_more" size={20} color="var(--ink-3)" /></button></span>
               </>}
             </div>
@@ -52,13 +52,14 @@ function BillEdit({ b }: { b: Bill | null }) {
   const [name, setName] = useState(b?.name ?? ''), [amt, setAmt] = useState(String(b?.amount ?? '')), [day, setDay] = useState(b?.dueDay ?? 1), [fixed, setFixed] = useState(b?.fixed ?? true), [pocket, setPocket] = useState(b?.pocket);
   return (
     <div class="col" style={{ gap: 12 }}>
-      <input class="field" value={name} onInput={(e) => setName((e.target as HTMLInputElement).value)} placeholder="ชื่อบิล เช่น ค่าเน็ต" />
-      <input class="field num" inputMode="decimal" value={amt} onInput={(e) => setAmt((e.target as HTMLInputElement).value)} placeholder="จำนวนเงิน ฿" />
+      <input class="field" value={name} disabled={!!b?.debtId} onInput={(e) => setName((e.target as HTMLInputElement).value)} placeholder="ชื่อบิล เช่น ค่าเน็ต" />
+      <input class="field num" inputMode="decimal" value={amt} disabled={!!b?.debtId} onInput={(e) => setAmt((e.target as HTMLInputElement).value)} placeholder="จำนวนเงิน ฿" />
+      {b?.debtId && <span class="cap muted" style={{ marginTop: -6 }}>ชื่อและยอดตามหนี้ แก้ที่หน้าหนี้ · กดถังขยะในรายการบิลเพื่อเอาออกจากบิล (หนี้ยังอยู่)</span>}
       <div class="row" style={{ justifyContent: 'space-between' }}><span class="t16">ครบกำหนดวันที่</span><Stepper value={day} onChange={(v) => setDay(Math.min(31, Math.max(1, v)))} min={1} w={52} /></div>
       <span class="label">จ่ายจากกระเป๋า</span>
       <PocketChips value={pocket ?? mainPocket()?.id} onPick={setPocket} />
       <label class="row" style={{ gap: 10 }}><input type="checkbox" checked={fixed} onChange={(e) => setFixed((e.target as HTMLInputElement).checked)} style={{ width: 22, height: 22 }} /><span class="col"><span class="t16">หักจากเงินเดือนเป็นค่าคงที่</span><span class="cap muted">ปิดไว้ถ้าบิลนี้จ่ายทีหลังจากกระเป๋าอื่น</span></span></label>
-      <button class="btn primary lg block" onClick={() => { if (!name.trim()) return toast('ใส่ชื่อก่อน'); const data = { name: name.trim(), amount: +amt.replace(/,/g, '') || 0, dueDay: day, fixed, kind: b?.kind ?? 'fixed' as const, pocket: pocket && pocket !== mainPocket()?.id ? pocket : undefined }; if (b) update(bills, b.id, data); else add(bills, data); closeSheet(); toast('บันทึกแล้ว'); }}>บันทึก</button>
+      <button class="btn primary lg block" onClick={() => { if (!name.trim()) return toast('ใส่ชื่อก่อน'); const data = { name: b?.debtId ? b.name : name.trim(), amount: b?.debtId ? b.amount : +amt.replace(/,/g, '') || 0, dueDay: day, fixed, kind: b?.kind ?? 'fixed' as const, pocket: pocket && pocket !== mainPocket()?.id ? pocket : undefined }; if (b) update(bills, b.id, data); else add(bills, data); closeSheet(); toast('บันทึกแล้ว'); }}>บันทึก</button>
     </div>
   );
 }

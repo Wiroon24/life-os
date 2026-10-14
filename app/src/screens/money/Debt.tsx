@@ -121,11 +121,11 @@ function editDebt(d?: D) { openSheet({ title: d ? `แก้ ${d.name}` : 'เ�
 function DebtEdit({ d }: { d?: D }) {
   const x = d ?? blank;
   const [name, setName] = useState(x.name), [type, setType] = useState(x.type ?? typeOf(x as D)[0]), [rt, setRt] = useState<'reducing' | 'fixed'>(x.rateType ?? 'reducing');
-  const [bal, setBal] = useState(x.balance ? String(x.balance) : ''), [orig, setOrig] = useState(x.orig ? String(x.orig) : ''), [pay, setPay] = useState(x.payment), [rate, setRate] = useState(x.rate), [after, setAfter] = useState(x.rateAfter ?? x.rate), [until, setUntil] = useState(x.fixedUntil ?? ''), [left, setLeft] = useState(x.monthsLeft ?? 12);
+  const [inBills, setInBills] = useState(x.inBills), [bal, setBal] = useState(x.balance ? String(x.balance) : ''), [orig, setOrig] = useState(x.orig ? String(x.orig) : ''), [pay, setPay] = useState(x.payment), [rate, setRate] = useState(x.rate), [after, setAfter] = useState(x.rateAfter ?? x.rate), [until, setUntil] = useState(x.fixedUntil ?? ''), [left, setLeft] = useState(x.monthsLeft ?? 12);
   const num = (s: string) => +s.replace(/,/g, '') || 0;
   const save = () => {
     const t = TYPES.find((q) => q[0] === type)!;
-    const data = { name: name.trim() || type, type, icon: t[1], rateType: rt, balance: num(bal), orig: num(orig) || num(bal), payment: pay, rate, rateAfter: rt === 'reducing' && until ? after : undefined, fixedUntil: rt === 'reducing' && until ? until : undefined, monthsLeft: rt === 'fixed' ? left : undefined, source: 'user' as const };
+    const data = { name: name.trim() || type, type, icon: t[1], rateType: rt, balance: num(bal), orig: num(orig) || num(bal), payment: pay, rate, rateAfter: rt === 'reducing' && until ? after : undefined, fixedUntil: rt === 'reducing' && until ? until : undefined, monthsLeft: rt === 'fixed' ? left : undefined, inBills, source: 'user' as const };
     if (d) update(debts, d.id, data); else add(debts, { ...blank, ...data, meta: '' });
     closeSheet(); toast('บันทึกแล้ว');
   };
@@ -139,6 +139,7 @@ function DebtEdit({ d }: { d?: D }) {
       <label><span class="label">เงินต้นคงเหลือ</span><input class="field num" inputMode="decimal" value={bal} onInput={(e) => setBal((e.target as HTMLInputElement).value)} /></label>
       <label><span class="label">ยอดตั้งต้น (ใช้คำนวณ % ที่จ่ายแล้ว)</span><input class="field num" inputMode="decimal" value={orig} onInput={(e) => setOrig((e.target as HTMLInputElement).value)} /></label>
       <div class="row" style={{ justifyContent: 'space-between' }}><span class="t16">ค่างวด/เดือน</span><Stepper value={pay} onChange={setPay} step={100} fmt={(v) => v.toLocaleString()} w={80} /></div>
+      <label class="row" style={{ gap: 10 }}><input type="checkbox" checked={inBills} onChange={(e) => setInBills((e.target as HTMLInputElement).checked)} style={{ width: 22, height: 22 }} /><span class="col"><span class="t16">ตัดจากบัญชีทุกเดือน (แสดงในบิลประจำ)</span><span class="cap muted">ไม่ต้องกรอกบิลซ้ำ · ปิดไว้ถ้าหักจากเงินเดือนก่อนเข้าบัญชีแล้ว เช่น กยศ.</span></span></label>
       {rt === 'fixed'
         ? <div class="row" style={{ justifyContent: 'space-between' }}><span class="t16">เหลืออีกกี่งวด</span><Stepper value={left} onChange={(v) => setLeft(Math.max(1, v))} step={1} fmt={(v) => `${v} งวด`} w={80} /></div>
         : <>

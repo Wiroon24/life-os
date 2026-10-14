@@ -6,7 +6,7 @@ import { live, add, update, remove } from '../../store/collection';
 import { thDate } from '../../domain/time';
 import {
   pockets, moves, txns, cards, livePockets, pocketById, pocketBalance, pocketAvailable, pocketIncoming, pocketSpent, cardOwes, addMove, setPocketBalance,
-  kindOfCat, POCKET_KIND, type Pocket, type PocketKind, type Txn,
+  kindOfCat, pocketBlockers, POCKET_KIND, type Pocket, type PocketKind, type Txn,
 } from '../../domain/money';
 import { Stepper } from '../sheets';
 import { editCard } from './Bills';
@@ -160,7 +160,7 @@ function PocketEdit({ p }: { p: Pocket | null }) {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8,1fr)', gap: 6 }}>{ICONS.map((i) => <button class="press" aria-label={i} style={{ height: 40, borderRadius: 12, background: icon === i ? 'var(--ink)' : 'var(--bg)', color: icon === i ? '#fff' : 'var(--ink)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setIcon(i)}><Icon n={i} fill size={20} /></button>)}</div></div>
       <label><span class="label">โน้ต (ไม่บังคับ)</span><input class="field" value={f.note} onInput={(e) => setF({ ...f, note: (e.target as HTMLInputElement).value })} /></label>
       <div class="row" style={{ gap: 8 }}>
-        {p && <button class="btn soft lg" style={{ color: 'var(--error)' }} aria-label="ลบกระเป๋า" onClick={() => { closeSheet(); remove(pockets, p.id, `ลบกระเป๋า ${p.name}`); back(); }}><Icon n="delete" size={22} /></button>}
+        {p && <button class="btn soft lg" style={{ color: 'var(--error)' }} aria-label="ลบกระเป๋า" onClick={() => { const bl = pocketBlockers(p); if (bl.length) return toast(`ลบไม่ได้: ${bl[0]}${bl.length > 1 ? ` (และอีก ${bl.length - 1} เรื่อง)` : ''}`); closeSheet(); remove(pockets, p.id, `ลบกระเป๋า ${p.name}`); back(); }}><Icon n="delete" size={22} /></button>}
         <button class="btn primary lg grow" onClick={save}>บันทึก</button>
       </div>
     </div>
